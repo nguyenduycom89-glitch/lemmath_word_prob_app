@@ -1,9 +1,8 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
-import re, os, time, random
+import re, os, time, random, requests
 from werkzeug.utils import secure_filename
 from docx import Document
 import PyPDF2
-from openai import OpenAI
 
 # ==============================
 # CẤU HÌNH ỨNG DỤNG
@@ -18,11 +17,12 @@ TEACHER_EMAIL = os.environ.get("TEACHER_EMAIL", "nguyenduycom89@gmail.com")
 TEACHER_PASSWORD = os.environ.get("TEACHER_PASSWORD", "nguyenmocgiao")
 
 # ==============================
-# DỮ LIỆU
+# DỮ LIỆU / UPLOAD
 # ==============================
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
 ALLOWED_EXT = {'.docx', '.pdf'}
 
 PROBLEMS = [
@@ -40,21 +40,26 @@ PROBLEMS = [
 STUDENT_SUBMISSIONS = []
 SUBMISSION_SEQ = 1
 
+# ==============================
+# CẤU HÌNH GROQ
+# ==============================
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")  # có thể đổi sang mixtral-8x7b-32768
+
 
 # ==============================
 # TIỆN ÍCH
 # ==============================
-def allowed(filename):
+def allowed(filename: str) -> bool:
     _, ext = os.path.splitext(filename.lower())
     return ext in ALLOWED_EXT
 
-
-def extract_text_from_docx(path):
+def extract_text_from_docx(path: str) -> str:
     doc = Document(path)
     return "\n".join([p.text for p in doc.paragraphs])
 
-
-def extract_text_from_pdf(path):
+def extract_text_from_pdf(path: str) -> str:
     text = ""
     with open(path, "rb") as f:
         reader = PyPDF2.PdfReader(f)
@@ -62,8 +67,7 @@ def extract_text_from_pdf(path):
             text += page.extract_text() or ""
     return text
 
-
-def parse_problem_file(content):
+def parse_problem_file(content: str):
     """Phân tích nội dung file có [BÀI TOÁN] / [ĐÁP ÁN MẪU] / [ĐÁP SỐ]"""
     problem, model, correct = "", "", 0
     if "[BÀI TOÁN]" in content:
@@ -82,7 +86,7 @@ def parse_problem_file(content):
 
 
 # ==============================
-# AI ĐÁNH GIÁ
+# AI ĐÁNH GIÁ (rule-based)
 # ==============================
 def evaluate_solution_v2(student_text, model_answer, correct_value):
     text = student_text.lower()
@@ -173,12 +177,11 @@ def inject_time():
 
 
 # ==============================
-# ROUTES
+# ROUTES: PUBLIC
 # ==============================
 @app.route('/')
 def index():
     return render_template('index.html')
-
 
 @app.route('/student')
 def student():
@@ -186,7 +189,9 @@ def student():
     return render_template('student.html', problem=problem["text"])
 
 
-# ========== TEACHER AUTH ==========
+# ==============================
+# ROUTES: AUTH (GIÁO VIÊN)
+# ==============================
 @app.route('/teacher-login', methods=['GET', 'POST'])
 def teacher_login():
     if request.method == 'POST':
@@ -199,7 +204,6 @@ def teacher_login():
         flash("❌ Sai email hoặc mật khẩu!", "error")
     return render_template('teacher_login.html')
 
-
 @app.route('/teacher-logout')
 def teacher_logout():
     session.pop('is_teacher', None)
@@ -207,46 +211,81 @@ def teacher_logout():
     return redirect('/')
 
 
-# ========== TEACHER DASHBOARD ==========
+# ==============================
+# ROUTES: TEACHER DASHBOARD
+# ==============================
 @app.route('/teacher')
 def teacher_dashboard():
-    return render_template('teacher.html', problems=PROBLEMS, submissions=STUDENT_SUBMISSIONS, is_teacher=session.get('is_teacher', False))
+    return render_template(
+        'teacher.html',
+        problems=PROBLEMS,
+        submissions=STUDENT_SUBMISSIONS,
+        is_teacher=session.get('is_teacher', False)
+    )
 
 
-# ========== TEACHER SAVE ==========
+# ==============================
+# ROUTES: WRITE ACTIONS (CHỈ GIÁO VIÊN)
+# ==============================
 @app.route('/save-teacher', methods=['POST'])
 def save_teacher():
     if not session.get('is_teacher'):
         return jsonify({"status": "error", "message": "Không có quyền."}), 403
     data = request.get_json(force=True)
-    prob, model, corr = data.get("problem"), data.get("model_answer"), int(data.get("correct_value") or 0)
+    prob = (data.get("problem") or "").strip()
+    model = (data.get("model_answer") or "").strip()
+    corr = int(data.get("correct_value") or 0)
+
+    if not prob or not model:
+        return jsonify({"status": "error", "message": "Thiếu [BÀI TOÁN] hoặc [ĐÁP ÁN MẪU]."}), 400
+
     new_id = max([p["id"] for p in PROBLEMS], default=0) + 1
     PROBLEMS.append({"id": new_id, "text": prob, "model_answer": model, "correct_value": corr, "topic": "Thủ công"})
     return jsonify({"status": "success", "message": f"Đã thêm bài mới (ID {new_id})."})
 
 
-# ========== TEACHER UPLOAD ==========
 @app.route('/upload-problem', methods=['POST'])
 def upload_problem():
     if not session.get('is_teacher'):
         return jsonify({"status": "error", "message": "Bạn chưa đăng nhập."}), 403
-    file = request.files.get('file')
-    if not file:
+
+    if 'file' not in request.files:
         return jsonify({"status": "error", "message": "Chưa chọn file."}), 400
 
-    name = secure_filename(file.filename)
-    path = os.path.join(app.config['UPLOAD_FOLDER'], name)
+    file = request.files['file']
+    filename = (file.filename or "").strip()
+    if filename == "":
+        return jsonify({"status": "error", "message": "File rỗng."}), 400
+
+    if not allowed(filename):
+        return jsonify({"status": "error", "message": "Chỉ hỗ trợ .docx và .pdf"}), 400
+
+    safe_name = secure_filename(filename)
+    path = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
     file.save(path)
-    content = extract_text_from_docx(path) if name.endswith('.docx') else extract_text_from_pdf(path)
+
+    # Đọc nội dung
+    try:
+        if safe_name.endswith('.docx'):
+            content = extract_text_from_docx(path)
+        else:
+            content = extract_text_from_pdf(path)
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Lỗi đọc file: {str(e)}"}), 500
+
+    # Phân tích
     prob, model, corr = parse_problem_file(content)
     if not prob:
-        return jsonify({"status": "error", "message": "Không tìm thấy [BÀI TOÁN]."}), 400
+        return jsonify({"status": "error", "message": "Không tìm thấy [BÀI TOÁN] trong file."}), 400
+
     new_id = max([p["id"] for p in PROBLEMS], default=0) + 1
     PROBLEMS.append({"id": new_id, "text": prob, "model_answer": model, "correct_value": corr, "topic": "Tự động"})
     return jsonify({"status": "success", "message": f"Đã thêm bài tập mới! Tổng: {len(PROBLEMS)}"})
 
 
-# ========== STUDENT SUBMIT ==========
+# ==============================
+# ROUTES: STUDENT SUBMIT
+# ==============================
 @app.route('/submit', methods=['POST'])
 def submit():
     global SUBMISSION_SEQ
@@ -266,8 +305,8 @@ def submit():
     STUDENT_SUBMISSIONS.append({
         "id": SUBMISSION_SEQ,
         "answer": ans,
-        "result": result,
-        "final_result": result,
+        "result": result,          # kết quả AI
+        "final_result": result,    # mặc định trùng AI; có thể bị override
         "manual_override": False,
         "time_submitted": time.strftime("%H:%M - %d/%m/%Y", time.localtime())
     })
@@ -275,13 +314,20 @@ def submit():
     return jsonify(result)
 
 
-# ========== TEACHER MANUAL GRADE ==========
+# ==============================
+# ROUTES: TEACHER MANUAL GRADE
+# ==============================
 @app.route('/grade-manual', methods=['POST'])
 def grade_manual():
     if not session.get('is_teacher'):
         return jsonify({"status": "error", "message": "Bạn chưa đăng nhập."}), 403
+
     data = request.get_json(force=True)
-    sid = int(data.get("submission_id"))
+    try:
+        sid = int(data.get("submission_id"))
+    except Exception:
+        return jsonify({"status": "error", "message": "submission_id không hợp lệ."}), 400
+
     sub = next((s for s in STUDENT_SUBMISSIONS if s["id"] == sid), None)
     if not sub:
         return jsonify({"status": "error", "message": "Không tìm thấy bài nộp."}), 404
@@ -298,37 +344,38 @@ def grade_manual():
     return jsonify({"status": "success", "message": f"✅ Đã chấm thủ công bài #{sid}."})
 
 
-# ========== NEXT PROBLEM ==========
+# ==============================
+# ROUTES: NEXT PROBLEM (random)
+# ==============================
 @app.route('/api/next-problem')
 def api_next_problem():
     if not PROBLEMS:
         return jsonify({"problem": "Chưa có bài tập."})
     return jsonify({"problem": random.choice(PROBLEMS)["text"]})
 
+
 # ==============================
-# ROUTE: AI TẠO BÀI TOÁN TƯƠNG TỰ
+# ROUTE: AI TẠO BÀI TOÁN TƯƠNG TỰ (GROQ)
 # ==============================
-
-import os
-
-# đảm bảo bạn đã set biến môi trường OPENAI_API_KEY trên Render hoặc local
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
-
 @app.route('/generate-ai', methods=['POST'])
 def generate_ai():
     """
-    Tạo bài toán tương tự bằng AI (dựa trên bài mẫu)
+    Tạo bài toán tương tự bằng AI (dựa trên bài mẫu) — dùng Groq API (OpenAI-compatible endpoint).
+    Cần biến môi trường: GROQ_API_KEY
     """
     try:
         data = request.get_json(force=True)
-        base_problem = data.get("problem", "").strip()
+        base_problem = (data.get("problem") or "").strip()
         if not base_problem:
             return jsonify({"status": "error", "message": "Chưa nhập bài mẫu để tạo tương tự."}), 400
 
+        if not GROQ_API_KEY:
+            return jsonify({"status": "error", "message": "Thiếu GROQ_API_KEY trên môi trường."}), 500
+
         prompt = f"""
-        Hãy tạo một bài toán có lời văn tương tự dạng toán lớp 4 sau, 
-        nhưng thay đổi dữ kiện số học (tổng, số lượng, đơn vị, vật thể, giá trị) 
-        sao cho hợp lý, giữ nguyên cấu trúc dạng toán và cách giải. 
+        Hãy tạo một bài toán có lời văn tương tự dạng toán lớp 4 sau,
+        nhưng thay đổi dữ kiện số học (tổng, số lượng, đơn vị, vật thể, giá trị)
+        sao cho hợp lý, giữ nguyên cấu trúc dạng toán và cách giải.
         Trả kết quả theo đúng định dạng:
 
         [BÀI TOÁN]
@@ -342,17 +389,41 @@ def generate_ai():
         {base_problem}
         """
 
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.8
-        )
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        body = {
+            "model": GROQ_MODEL,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.8,
+            "max_tokens": 400
+        }
 
-        result = completion.choices[0].message.content.strip()
-        return jsonify({"status": "success", "generated": result})
+        resp = requests.post(GROQ_URL, headers=headers, json=body, timeout=60)
+        if resp.status_code != 200:
+            # Fallback khi hết quota / lỗi model
+            if resp.status_code == 429 or "insufficient_quota" in resp.text.lower():
+                sample = """[BÀI TOÁN]
+Một người thợ đóng 6 cái kệ hết 540000 đồng. Hỏi 9 cái kệ hết bao nhiêu tiền?
+[ĐÁP ÁN MẪU]
+Giá 1 cái kệ là: 540000 : 6 = 90000 (đồng).
+Giá 9 cái kệ là: 90000 × 9 = 810000 (đồng).
+[ĐÁP SỐ]
+810000
+"""
+                return jsonify({"status": "success", "generated": sample})
+
+            return jsonify({"status": "error", "message": f"Lỗi Groq {resp.status_code}: {resp.text}"}), resp.status_code
+
+        data_json = resp.json()
+        generated = data_json["choices"][0]["message"]["content"].strip()
+        return jsonify({"status": "success", "generated": generated})
 
     except Exception as e:
-        return jsonify({"status": "error", "message": f"Lỗi AI: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": f"Lỗi AI/Groq: {str(e)}"}), 500
 
 
 # ==============================
