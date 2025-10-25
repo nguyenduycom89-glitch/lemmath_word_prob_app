@@ -3,6 +3,7 @@ import re, os, time, random
 from werkzeug.utils import secure_filename
 from docx import Document
 import PyPDF2
+from openai import OpenAI
 
 # ==============================
 # CẤU HÌNH ỨNG DỤNG
@@ -307,7 +308,7 @@ def api_next_problem():
 # ==============================
 # ROUTE: AI TẠO BÀI TOÁN TƯƠNG TỰ
 # ==============================
-from openai import OpenAI
+
 import os
 
 # đảm bảo bạn đã set biến môi trường OPENAI_API_KEY trên Render hoặc local
