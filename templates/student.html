@@ -5,12 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Giải Toán Có Lời Văn - Lớp 4</title>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ time.time() }}">
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <div class="container">
-        <!-- Logo -->
         <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-header">
 
         <h1>📚 Giải Toán Có Lời Văn – Lớp 4</h1>
@@ -19,14 +18,12 @@
             <div class="problem-title">
                 <i class="far fa-file-alt"></i> Bài toán
             </div>
-            <div class="problem-content">
-                {{ problem }}
-            </div>
+            <div class="problem-content">{{ problem }}</div>
         </div>
 
         <div class="solution-box">
             <textarea id="studentAnswer" rows="8" 
-                placeholder="Em hãy viết lời giải vào đây nhé... Ví dụ: 
+                placeholder="Em hãy viết lời giải vào đây nhé... Ví dụ:
 - Trước tiên, em tìm giá tiền của 1 bao gạo...
 - Mỗi bao gạo giá là: 400000 : 5 = 80000 (đồng)
 - Vậy 8 bao gạo giá là: 80000 × 8 = 640000 (đồng)
@@ -43,17 +40,26 @@
             <p><strong>⏱️ Thời gian làm bài:</strong> <span id="duration"></span></p>
             <p><strong>🎯 Đánh giá:</strong> <span id="level" class="badge"></span></p>
             <p><strong>💬 Nhận xét:</strong> <span id="feedback"></span></p>
-            
+
             <button class="btn-ask" onclick="askTeacher()">
                 <i class="fas fa-question-circle"></i> Em chưa hiểu – hỏi Thầy
             </button>
+
+            <div class="nav-buttons">
+                <button class="btn-home" onclick="window.location.href='/'">
+                    🏠 Quay lại trang chủ
+                </button>
+                <button class="btn-next" onclick="nextProblem()">
+                    ⏭️ Làm bài khác
+                </button>
+            </div>
         </div>
     </div>
 
     <footer class="footer">
-        <p>© 2025 Giải Toán Có Lời Văn – Lớp 4 | 
-           <strong>Được thiết kế bởi giáo viên: Nguyễn Đức Duy</strong> | 
-           📞 Số điện thoại: <a href="tel:0907804263">0907.804.263</a>
+        <p>© 2025 Giải Toán Có Lời Văn – Lớp 4 |
+           <strong>Giáo viên: Nguyễn Đức Duy</strong> |
+           📞 <a href="tel:0907804263">0907.804.263</a>
         </p>
     </footer>
 
@@ -61,8 +67,8 @@
         const startTime = new Date().getTime();
 
         async function submitAnswer() {
-            const answer = document.getElementById('studentAnswer').value;
-            if (!answer.trim()) {
+            const answer = document.getElementById('studentAnswer').value.trim();
+            if (!answer) {
                 alert("❗ Em chưa viết lời giải!");
                 return;
             }
@@ -74,20 +80,21 @@
             });
 
             const data = await res.json();
-            const duration = data.duration || "Không xác định";
-
-            document.getElementById('duration').innerText = duration;
+            document.getElementById('duration').innerText = data.duration;
             document.getElementById('level').innerText = data.level;
             document.getElementById('level').className = 'badge ' + data.level_class;
             document.getElementById('feedback').innerText = data.feedback;
             document.getElementById('result').style.display = 'block';
-
-            // Cuộn xuống kết quả
             document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
         }
 
         function askTeacher() {
-            alert("📩 Tin nhắn của em đã được gửi đến Thầy! Thầy sẽ trả lời sớm nhất nhé.");
+            alert("📩 Tin nhắn của em đã được gửi đến Thầy!");
+        }
+
+        function nextProblem() {
+            alert("🔁 Tính năng bài tiếp theo đang được cập nhật. Hãy quay lại trang chủ!");
+            window.location.href = '/';
         }
     </script>
 </body>
