@@ -321,3 +321,12 @@ textarea {
 .btn-home:hover, .btn-next:hover, .btn-logout:hover {
     background-color: #0d47a1;
 }
+
+.guide-box {
+  background: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.guide-box h4 { margin: 0 0 8px; color: #2e7d32; }
+.guide-tips { margin-top: 8px; color: #2e7d32; }

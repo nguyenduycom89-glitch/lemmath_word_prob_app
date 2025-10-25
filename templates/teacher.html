@@ -15,13 +15,9 @@
 
         <!-- Nút quay lại và đăng xuất -->
         <div class="top-buttons">
-            <button class="btn-home" onclick="window.location.href='/'">
-                🏠 Quay lại trang chủ
-            </button>
+            <button class="btn-home" onclick="window.location.href='/'">🏠 Quay lại trang chủ</button>
             {% if is_teacher %}
-            <button class="btn-logout" onclick="window.location.href='/teacher-logout'">
-                🚪 Đăng xuất
-            </button>
+            <button class="btn-logout" onclick="window.location.href='/teacher-logout'">🚪 Đăng xuất</button>
             {% endif %}
         </div>
 
@@ -29,10 +25,10 @@
         <div class="card">
             <h2>✏️ Tạo bài tập thủ công</h2>
             <label>Bài toán:</label>
-            <textarea id="problemText" rows="3"></textarea>
+            <textarea id="problemText" rows="3" placeholder="Ví dụ: Một cửa hàng bán được 5 bao gạo..."></textarea>
 
             <label>Đáp án mẫu:</label>
-            <textarea id="modelAnswer" rows="4"></textarea>
+            <textarea id="modelAnswer" rows="4" placeholder="Giá 1 bao gạo là: ..."></textarea>
 
             <label>Đáp số đúng (số):</label>
             <input type="number" id="correctValue" placeholder="Ví dụ: 640000">
@@ -61,18 +57,42 @@ Giá 8 bao gạo là: 80000 × 8 = 640000 (đồng).
             <p id="uploadStatus"></p>
         </div>
 
-        <!-- Bài làm học sinh -->
+        <!-- Danh sách bài làm học sinh -->
         <div class="card" style="margin-top: 25px;">
             <h2>📊 Bài làm học sinh ({{ submissions|length if submissions else 0 }} bài)</h2>
             {% if submissions %}
                 {% for sub in submissions %}
                     <div class="submission-item">
-                        <p><strong>Lời giải:</strong> {{ sub.answer[:120] }}{% if sub.answer|length > 120 %}...{% endif %}</p>
-                        <p>
-                            <span class="badge {{ sub.result.level_class }}">{{ sub.result.level }}</span>
+                        <p><strong>Lời giải học sinh:</strong> {{ sub.answer }}</p>
+                        <p><strong>AI đánh giá:</strong> 
+                            <span class="badge {{ sub.result.level_class }}">{{ sub.result.level }}</span> 
                             – {{ sub.result.feedback }}
                         </p>
                         <small>⏱️ Nộp lúc: {{ sub.time_submitted }}</small>
+
+                        {% if is_teacher %}
+                        <div class="manual-grade">
+                            <h4>✍️ Nhận xét / Chấm thủ công</h4>
+                            <label>Điểm (0–10):</label>
+                            <input type="number" id="score-{{ sub.id }}" min="0" max="10" value="{{ sub.final_result.score if sub.manual_override else sub.result.score }}">
+
+                            <label>Mức đánh giá:</label>
+                            <select id="level-{{ sub.id }}">
+                                <option value="Hoàn thành xuất sắc" {% if sub.final_result.level == "Hoàn thành xuất sắc" %}selected{% endif %}>Hoàn thành xuất sắc</option>
+                                <option value="Hoàn thành tốt" {% if sub.final_result.level == "Hoàn thành tốt" %}selected{% endif %}>Hoàn thành tốt</option>
+                                <option value="Hoàn thành" {% if sub.final_result.level == "Hoàn thành" %}selected{% endif %}>Hoàn thành</option>
+                                <option value="Chưa hoàn thành" {% if sub.final_result.level == "Chưa hoàn thành" %}selected{% endif %}>Chưa hoàn thành</option>
+                            </select>
+
+                            <label>Nhận xét giáo viên:</label>
+                            <textarea id="feedback-{{ sub.id }}" rows="3" placeholder="Nhận xét chi tiết...">{{ sub.final_result.feedback if sub.manual_override else sub.result.feedback }}</textarea>
+
+                            <button class="btn-save" onclick="saveManualGrade({{ sub.id }})">💾 Ghi nhận xét</button>
+                            {% if sub.manual_override %}
+                                <p style="color:green; font-size:13px;">✅ Đã chấm thủ công</p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
                 {% endfor %}
             {% else %}
@@ -89,6 +109,7 @@ Giá 8 bao gạo là: 80000 × 8 = 640000 (đồng).
     </footer>
 
     <script>
+        // =============== LƯU BÀI GIÁO VIÊN ===============
         function saveProblem() {
             const data = {
                 problem: document.getElementById('problemText').value.trim(),
@@ -111,6 +132,7 @@ Giá 8 bao gạo là: 80000 × 8 = 640000 (đồng).
             .catch(() => alert("❌ Lỗi khi kết nối máy chủ."));
         }
 
+        // =============== IMPORT FILE ===============
         document.getElementById('uploadForm').onsubmit = async (e) => {
             e.preventDefault();
             const fileInput = document.getElementById('problemFile');
@@ -127,6 +149,38 @@ Giá 8 bao gạo là: 80000 × 8 = 640000 (đồng).
             const data = await res.json();
             document.getElementById('uploadStatus').innerText = data.message;
         };
+
+        // =============== GIÁO VIÊN GHI NHẬN XÉT ===============
+        async function saveManualGrade(id) {
+            const score = document.getElementById(`score-${id}`).value;
+            const level = document.getElementById(`level-${id}`).value;
+            const feedback = document.getElementById(`feedback-${id}`).value.trim();
+            let level_class = "ok";
+
+            if (level.includes("xuất sắc")) level_class = "excellent";
+            else if (level.includes("tốt")) level_class = "good";
+            else if (level.includes("Chưa")) level_class = "fail";
+
+            const res = await fetch('/grade-manual', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    submission_id: id,
+                    score: score,
+                    level: level,
+                    level_class: level_class,
+                    feedback: feedback
+                })
+            });
+
+            const data = await res.json();
+            if (data.status === "success") {
+                alert(data.message);
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                alert("❌ " + (data.message || "Không thể lưu nhận xét"));
+            }
+        }
     </script>
 </body>
 </html>

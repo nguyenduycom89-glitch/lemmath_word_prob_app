@@ -3,43 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Giải Toán Có Lời Văn - Lớp 4</title>
+    <title>📚 Giải Toán Có Lời Văn - Lớp 4</title>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ time.time() }}">
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <style>
+        .guide-box {
+            background: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-top: 10px;
+        }
+        .guide-box h4 { color: #2e7d32; margin-bottom: 6px; }
+        .guide-box ol { margin-left: 20px; }
+        .guide-box ul { margin-top: 8px; color: #2e7d32; }
+    </style>
 </head>
 <body>
     <div class="container">
+        <!-- Logo -->
         <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-header">
 
-        <h1>📚 Giải Toán Có Lời Văn – Lớp 4</h1>
+        <h1>📘 Giải Toán Có Lời Văn – Lớp 4</h1>
 
+        <!-- Bài toán -->
         <div class="problem-box">
             <div class="problem-title">
                 <i class="far fa-file-alt"></i> Bài toán
             </div>
-            <div class="problem-content">{{ problem }}</div>
+            <div class="problem-content" id="problemContent">{{ problem }}</div>
         </div>
 
+        <!-- Ô nhập lời giải -->
         <div class="solution-box">
-            <textarea id="studentAnswer" rows="8" 
+            <textarea id="studentAnswer" rows="8"
                 placeholder="Em hãy viết lời giải vào đây nhé... Ví dụ:
-- Trước tiên, em tìm giá tiền của 1 bao gạo...
-- Mỗi bao gạo giá là: 400000 : 5 = 80000 (đồng)
-- Vậy 8 bao gạo giá là: 80000 × 8 = 640000 (đồng)
+- Bước 1: Tính giá tiền 1 bao gạo.
+- 400000 : 5 = 80000 (đồng)
+- Bước 2: Tính giá tiền 8 bao gạo.
+- 80000 × 8 = 640000 (đồng)
 - Đáp số: 640000 đồng"></textarea>
         </div>
 
+        <!-- Nút gửi -->
         <button class="btn-submit" onclick="submitAnswer()">
             <i class="fas fa-paper-plane"></i> Gửi bài làm
         </button>
 
-        <!-- Kết quả sau khi nộp -->
+        <!-- Kết quả -->
         <div id="result" class="result-box" style="display: none;">
             <h3>🎉 Kết quả của em!</h3>
             <p><strong>⏱️ Thời gian làm bài:</strong> <span id="duration"></span></p>
             <p><strong>🎯 Đánh giá:</strong> <span id="level" class="badge"></span></p>
             <p><strong>💬 Nhận xét:</strong> <span id="feedback"></span></p>
+
+            <!-- Hướng dẫn từng bước -->
+            <div id="guideBox" class="guide-box" style="display:none;">
+                <h4>🧭 Hướng dẫn từng bước</h4>
+                <ol id="guideSteps"></ol>
+                <ul id="guideTips"></ul>
+            </div>
 
             <button class="btn-ask" onclick="askTeacher()">
                 <i class="fas fa-question-circle"></i> Em chưa hiểu – hỏi Thầy
@@ -64,7 +88,7 @@
     </footer>
 
     <script>
-        const startTime = new Date().getTime();
+        let startTime = new Date().getTime();
 
         async function submitAnswer() {
             const answer = document.getElementById('studentAnswer').value.trim();
@@ -80,21 +104,58 @@
             });
 
             const data = await res.json();
-            document.getElementById('duration').innerText = data.duration;
-            document.getElementById('level').innerText = data.level;
-            document.getElementById('level').className = 'badge ' + data.level_class;
-            document.getElementById('feedback').innerText = data.feedback;
+
+            document.getElementById('duration').innerText = data.duration || '';
+            document.getElementById('level').innerText = data.level || '';
+            document.getElementById('level').className = 'badge ' + (data.level_class || '');
+            document.getElementById('feedback').innerText = data.feedback || '';
+
+            // Hiển thị hướng dẫn từng bước
+            const guide = data.guide || {};
+            const steps = guide.steps || [];
+            const tips = guide.tips || [];
+
+            const stepsEl = document.getElementById('guideSteps');
+            const tipsEl = document.getElementById('guideTips');
+            stepsEl.innerHTML = '';
+            tipsEl.innerHTML = '';
+
+            steps.forEach(s => {
+                const li = document.createElement('li');
+                li.textContent = s;
+                stepsEl.appendChild(li);
+            });
+            tips.forEach(t => {
+                const li = document.createElement('li');
+                li.textContent = t;
+                tipsEl.appendChild(li);
+            });
+
+            document.getElementById('guideBox').style.display = steps.length ? 'block' : 'none';
             document.getElementById('result').style.display = 'block';
             document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
         }
 
         function askTeacher() {
-            alert("📩 Tin nhắn của em đã được gửi đến Thầy!");
+            alert("📩 Tin nhắn của em đã được gửi đến Thầy! Thầy sẽ phản hồi sớm nhé.");
         }
 
-        function nextProblem() {
-            alert("🔁 Tính năng bài tiếp theo đang được cập nhật. Hãy quay lại trang chủ!");
-            window.location.href = '/';
+        async function nextProblem() {
+            try {
+                const res = await fetch('/api/next-problem');
+                const data = await res.json();
+                document.getElementById('problemContent').textContent = data.problem || 'Chưa có bài tập.';
+
+                // Reset phần làm bài
+                document.getElementById('studentAnswer').value = '';
+                document.getElementById('result').style.display = 'none';
+                document.getElementById('guideBox').style.display = 'none';
+                startTime = new Date().getTime();
+
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (err) {
+                alert("⚠️ Không thể tải bài mới. Vui lòng thử lại.");
+            }
         }
     </script>
 </body>
