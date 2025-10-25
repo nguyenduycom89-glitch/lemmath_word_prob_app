@@ -67,22 +67,28 @@ def extract_text_from_pdf(path: str) -> str:
             text += page.extract_text() or ""
     return text
 
-def parse_problem_file(content: str):
-    """Phân tích nội dung file có [BÀI TOÁN] / [ĐÁP ÁN MẪU] / [ĐÁP SỐ]"""
-    problem, model, correct = "", "", 0
-    if "[BÀI TOÁN]" in content:
-        start = content.find("[BÀI TOÁN]") + len("[BÀI TOÁN]")
-        end = content.find("[ĐÁP ÁN MẪU]") if "[ĐÁP ÁN MẪU]" in content else len(content)
-        problem = content[start:end].strip()
-    if "[ĐÁP ÁN MẪU]" in content:
-        start = content.find("[ĐÁP ÁN MẪU]") + len("[ĐÁP ÁN MẪU]")
-        end = content.find("[ĐÁP SỐ]") if "[ĐÁP SỐ]" in content else len(content)
-        model = content[start:end].strip()
-    if "[ĐÁP SỐ]" in content:
-        m = re.search(r"\d+", content[content.find("[ĐÁP SỐ]"):])
-        if m:
-            correct = int(m.group())
-    return problem, model, correct
+def parse_problem_file(content):
+    """
+    Phân tích file có nhiều bài toán: [BÀI TOÁN] ... [ĐÁP ÁN MẪU] ... [ĐÁP SỐ]
+    Trả về list gồm nhiều bài.
+    """
+    pattern = r"\[BÀI TOÁN\](.*?)\[ĐÁP ÁN MẪU\](.*?)\[ĐÁP SỐ\](\s*\d+)"
+    matches = re.findall(pattern, content, re.S)
+
+    problems = []
+    for i, (prob, model, ans) in enumerate(matches, start=1):
+        try:
+            correct = int(re.search(r"\d+", ans).group())
+        except:
+            correct = 0
+        problems.append({
+            "id": i,
+            "text": prob.strip(),
+            "model_answer": model.strip(),
+            "correct_value": correct,
+            "topic": "Tự động"
+        })
+    return problems
 
 
 # ==============================
@@ -249,38 +255,40 @@ def upload_problem():
     if not session.get('is_teacher'):
         return jsonify({"status": "error", "message": "Bạn chưa đăng nhập."}), 403
 
-    if 'file' not in request.files:
+    file = request.files.get('file')
+    if not file:
         return jsonify({"status": "error", "message": "Chưa chọn file."}), 400
 
-    file = request.files['file']
-    filename = (file.filename or "").strip()
-    if filename == "":
-        return jsonify({"status": "error", "message": "File rỗng."}), 400
-
+    filename = secure_filename(file.filename)
     if not allowed(filename):
         return jsonify({"status": "error", "message": "Chỉ hỗ trợ .docx và .pdf"}), 400
 
-    safe_name = secure_filename(filename)
-    path = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
+    path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(path)
 
-    # Đọc nội dung
     try:
-        if safe_name.endswith('.docx'):
+        if filename.endswith('.docx'):
             content = extract_text_from_docx(path)
         else:
             content = extract_text_from_pdf(path)
     except Exception as e:
         return jsonify({"status": "error", "message": f"Lỗi đọc file: {str(e)}"}), 500
 
-    # Phân tích
-    prob, model, corr = parse_problem_file(content)
-    if not prob:
-        return jsonify({"status": "error", "message": "Không tìm thấy [BÀI TOÁN] trong file."}), 400
+    # Phân tích nhiều bài
+    parsed_problems = parse_problem_file(content)
+    if not parsed_problems:
+        return jsonify({"status": "error", "message": "Không tìm thấy bài toán nào trong file."}), 400
 
-    new_id = max([p["id"] for p in PROBLEMS], default=0) + 1
-    PROBLEMS.append({"id": new_id, "text": prob, "model_answer": model, "correct_value": corr, "topic": "Tự động"})
-    return jsonify({"status": "success", "message": f"Đã thêm bài tập mới! Tổng: {len(PROBLEMS)}"})
+    # Gán ID tiếp theo
+    next_id = max([p["id"] for p in PROBLEMS], default=0) + 1
+    for i, p in enumerate(parsed_problems):
+        p["id"] = next_id + i
+        PROBLEMS.append(p)
+
+    return jsonify({
+        "status": "success",
+        "message": f"✅ Đã thêm {len(parsed_problems)} bài mới! Tổng: {len(PROBLEMS)}"
+    })
 
 
 # ==============================
