@@ -346,3 +346,18 @@ textarea {
     border-color: #0d47a1;
 }
 
+.btn-ai {
+    background-color: #4caf50;
+    color: white;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 10px;
+    font-weight: 600;
+    transition: background-color 0.2s ease-in-out;
+}
+.btn-ai:hover {
+    background-color: #388e3c;
+}
+

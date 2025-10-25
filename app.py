@@ -304,6 +304,55 @@ def api_next_problem():
         return jsonify({"problem": "Chưa có bài tập."})
     return jsonify({"problem": random.choice(PROBLEMS)["text"]})
 
+# ==============================
+# ROUTE: AI TẠO BÀI TOÁN TƯƠNG TỰ
+# ==============================
+from openai import OpenAI
+import os
+
+# đảm bảo bạn đã set biến môi trường OPENAI_API_KEY trên Render hoặc local
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+
+@app.route('/generate-ai', methods=['POST'])
+def generate_ai():
+    """
+    Tạo bài toán tương tự bằng AI (dựa trên bài mẫu)
+    """
+    try:
+        data = request.get_json(force=True)
+        base_problem = data.get("problem", "").strip()
+        if not base_problem:
+            return jsonify({"status": "error", "message": "Chưa nhập bài mẫu để tạo tương tự."}), 400
+
+        prompt = f"""
+        Hãy tạo một bài toán có lời văn tương tự dạng toán lớp 4 sau, 
+        nhưng thay đổi dữ kiện số học (tổng, số lượng, đơn vị, vật thể, giá trị) 
+        sao cho hợp lý, giữ nguyên cấu trúc dạng toán và cách giải. 
+        Trả kết quả theo đúng định dạng:
+
+        [BÀI TOÁN]
+        ...
+        [ĐÁP ÁN MẪU]
+        ...
+        [ĐÁP SỐ]
+        ...
+
+        Bài gốc:
+        {base_problem}
+        """
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.8
+        )
+
+        result = completion.choices[0].message.content.strip()
+        return jsonify({"status": "success", "generated": result})
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Lỗi AI: {str(e)}"}), 500
+
 
 # ==============================
 # MAIN

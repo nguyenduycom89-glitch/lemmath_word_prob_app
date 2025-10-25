@@ -36,6 +36,10 @@
             <button class="btn-save" onclick="saveProblem()">
                 💾 Lưu bài tập
             </button>
+            <button class="btn-ai" onclick="generateAIProblem()">
+                🤖 Tạo bài tương tự
+            </button>
+
         </div>
 
         <!-- Import file -->
@@ -182,5 +186,55 @@ Giá 8 bao gạo là: 80000 × 8 = 640000 (đồng).
             }
         }
     </script>
+
+
+<script>
+async function generateAIProblem() {
+    const baseProblem = document.getElementById('problemText').value.trim();
+    if (!baseProblem) {
+        alert("❗ Vui lòng nhập ít nhất một bài mẫu để AI dựa vào tạo bài tương tự.");
+        return;
+    }
+
+    // Hiển thị trạng thái chờ
+    const btn = document.querySelector('.btn-ai');
+    const oldText = btn.innerHTML;
+    btn.innerHTML = "⏳ Đang tạo bài tương tự...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/generate-ai', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ problem: baseProblem })
+        });
+        const data = await res.json();
+
+        if (data.status === "success") {
+            alert("✅ Bài toán tương tự đã được tạo!\n\n" + data.generated);
+
+            // Nếu muốn tự động dán kết quả vào các ô nhập:
+            const parts = data.generated.split(/\[ĐÁP ÁN MẪU\]|\[ĐÁP SỐ\]/i);
+            if (parts.length >= 2) {
+                document.getElementById('problemText').value = parts[0].replace(/\[BÀI TOÁN\]/i, '').trim();
+                document.getElementById('modelAnswer').value = parts[1].trim();
+                if (parts[2]) {
+                    const num = parts[2].match(/\d+/);
+                    if (num) document.getElementById('correctValue').value = num[0];
+                }
+            }
+        } else {
+            alert("❌ " + (data.message || "AI không thể tạo bài tương tự."));
+        }
+    } catch (err) {
+        console.error(err);
+        alert("❌ Lỗi kết nối với máy chủ AI.");
+    } finally {
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+    }
+}
+</script>
+
 </body>
 </html>
