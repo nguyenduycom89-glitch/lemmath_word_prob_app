@@ -18,6 +18,9 @@
         .guide-box h4 { color: #2e7d32; margin-bottom: 6px; }
         .guide-box ol { margin-left: 20px; }
         .guide-box ul { margin-top: 8px; color: #2e7d32; }
+        .top-buttons { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .btn-home { background-color: #f1f1f1; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: 1px solid #ccc; }
+        .btn-home:hover { background-color: #e0e0e0; }
     </style>
 </head>
 <body>
@@ -26,6 +29,11 @@
         <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-header">
 
         <h1>📘 Giải Toán Có Lời Văn – Lớp 4</h1>
+
+        <!-- Nút quay lại luôn hiển thị -->
+        <div class="top-buttons">
+            <button class="btn-home" onclick="window.location.href='/'">🏠 Quay lại trang chủ</button>
+        </div>
 
         <!-- Bài toán -->
         <div class="problem-box">
@@ -70,9 +78,6 @@
             </button>
 
             <div class="nav-buttons">
-                <button class="btn-home" onclick="window.location.href='/'">
-                    🏠 Quay lại trang chủ
-                </button>
                 <button class="btn-next" onclick="nextProblem()">
                     ⏭️ Làm bài khác
                 </button>
@@ -145,13 +150,10 @@
                 const res = await fetch('/api/next-problem');
                 const data = await res.json();
                 document.getElementById('problemContent').textContent = data.problem || 'Chưa có bài tập.';
-
-                // Reset phần làm bài
                 document.getElementById('studentAnswer').value = '';
                 document.getElementById('result').style.display = 'none';
                 document.getElementById('guideBox').style.display = 'none';
                 startTime = new Date().getTime();
-
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } catch (err) {
                 alert("⚠️ Không thể tải bài mới. Vui lòng thử lại.");
