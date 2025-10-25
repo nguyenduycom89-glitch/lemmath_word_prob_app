@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giải Toán Có Lời Văn – Lớp 4</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Logo -->
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-small">
+
+        <h1>📚 Giải Toán Có Lời Văn – Lớp 4</h1>
+
+        <div class="role-selector">
+            <a href="/student" class="btn btn-student">
+                👧 Tôi là học sinh
+            </a>
+            <a href="/teacher" class="btn btn-teacher">
+                👨‍🏫 Tôi là giáo viên
+            </a>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>© 2025 Giải Toán Có Lời Văn – Lớp 4 | 
+           <strong>Được thiết kế bởi giáo viên: Nguyễn Đức Duy</strong> | 
+           📞 Số điện thoại: <a href="tel:0907804263">0907.804.263</a>
+        </p>
+    </footer>
+</body>
+</html>

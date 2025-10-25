@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👨‍🏫 Giáo viên – Giải Toán Có Lời Văn</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Logo -->
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-header">
+
+        <h1>👨‍🏫 Giao diện Giáo viên</h1>
+
+        <!-- =============== TẠO BÀI THỦ CÔNG =============== -->
+        <div class="card">
+            <h2>✏️ Tạo bài tập thủ công</h2>
+            <label>Bài toán:</label>
+            <textarea id="problemText" rows="3" placeholder="Ví dụ: Một cửa hàng bán được 5 bao gạo...">{{ problem if problem else '' }}</textarea>
+
+            <label>Đáp án mẫu (lời giải chuẩn):</label>
+            <textarea id="modelAnswer" rows="4" placeholder="Ví dụ: Giá 1 bao gạo là: 400000 : 5 = 80000 (đồng)...">{{ model_answer if model_answer else '' }}</textarea>
+
+            <label>Đáp số đúng (số):</label>
+            <input type="number" id="correctValue" value="{{ correct_value if correct_value else 640000 }}">
+
+            <button class="btn-save" onclick="saveProblem()">
+                <i class="fas fa-save"></i> Lưu bài tập
+            </button>
+        </div>
+
+        <!-- ... phần head, container, logo, h1 vẫn giữ nguyên ... -->
+
+        <div class="card" style="margin-top: 25px;">
+                        <h2>📤 Import bài tập từ Word/PDF</h2>
+                                    <p style="margin-bottom: 12px; color: #555;">
+                                                    📌 File phải có định dạng như sau:
+                                                                </p>
+                                                                            <pre class="format-example">
+                                                                                    [BÀI TOÁN]
+                                                                                            Một cửa hàng bán được 5 bao gạo với số tiền là 400000 đồng. Hỏi cửa hàng đó bán 8 bao gạo được bao nhiêu tiền?
+
+                                                                                                    [ĐÁP ÁN MẪU]
+                                                                                                            Giá 1 bao gạo là: 400000 : 5 = 80000 (đồng).
+                                                                                                                    Giá 8 bao gạo là: 80000 × 8 = 640000 (đồng).
+                                                                                                                            Đáp số: 640000 đồng.
+
+                                                                                                                                    [ĐÁP SỐ]
+                                                                                                                                            640000
+                                                                                                                                                        </pre>
+
+                                                                                                                                                                    <form id="uploadForm" enctype="multipart/form-data" style="margin-top: 15px;">
+                                                                                                                                                                                    <input type="file" id="problemFile" accept=".docx,.pdf" required style="width: 100%; margin: 8px 0; padding: 8px; border: 1px solid #ccc; border-radius: 8px;">
+                                                                                                                                                                                                    <button type="submit" class="btn-upload">
+                                                                                                                                                                                                                        <i class="fas fa-cloud-upload-alt"></i> Tải lên file
+                                                                                                                                                                                                                                        </button>
+                                                                                                                                                                                                                                                    </form>
+                                                                                                                                                                                                                                                                <p id="uploadStatus" style="margin-top: 10px; min-height: 24px; font-weight: bold;"></p>
+                                                                                                                                                                                                                                                                        </div>
+
+<!-- Bằng đoạn này -->
+<pre class="format-example">
+[BÀI TOÁN]
+Một cửa hàng bán được 5 bao gạo với số tiền là 400000 đồng. Hỏi cửa hàng đó bán 8 bao gạo được bao nhiêu tiền?
+
+[ĐÁP ÁN MẪU]
+Giá 1 bao gạo là: 400000 : 5 = 80000 (đồng).
+Giá 8 bao gạo là: 80000 × 8 = 640000 (đồng).
+Đáp số: 640000 đồng.
+
+[ĐÁP SỐ]
+640000
+</pre>
+            </pre>
+
+            <form id="uploadForm" enctype="multipart/form-data" style="margin-top: 15px;">
+                <input type="file" id="problemFile" accept=".docx,.pdf" required style="width: 100%; margin: 8px 0; padding: 8px; border: 1px solid #ccc; border-radius: 8px;">
+                <button type="submit" class="btn-upload">
+                    <i class="fas fa-cloud-upload-alt"></i> Tải lên file
+                </button>
+            </form>
+            <p id="uploadStatus" style="margin-top: 10px; min-height: 24px; font-weight: bold;"></p>
+        </div>
+
+        <!-- =============== BÀI LÀM HỌC SINH =============== -->
+        <div class="card" style="margin-top: 25px;">
+            <h2>📊 Bài làm học sinh ({{ submissions|length if submissions else 0 }} bài)</h2>
+            {% if submissions %}
+                {% for sub in submissions %}
+                <div class="submission-item">
+                    <p><strong>Lời giải:</strong> {{ sub.answer[:120] }}{% if sub.answer|length > 120 %}...{% endif %}</p>
+                    <p>
+                        <span class="badge {{ sub.result.level_class }}">{{ sub.result.level }}</span>
+                        – {{ sub.result.feedback }}
+                    </p>
+                    <small>⏱️ Nộp lúc: {{ sub.time_submitted }}</small>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color: #888; font-style: italic;">Chưa có học sinh nào nộp bài.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>© 2025 Giải Toán Có Lời Văn – Lớp 4 | 
+           <strong>Được thiết kế bởi giáo viên: Nguyễn Đức Duy</strong> | 
+           📞 Số điện thoại: <a href="tel:0907804263">0907.804.263</a>
+        </p>
+    </footer>
+
+    <!-- =============== SCRIPTS =============== -->
+    <script>
+        // Lưu bài tập thủ công
+        function saveProblem() {
+            const data = {
+                problem: document.getElementById('problemText').value.trim(),
+                model_answer: document.getElementById('modelAnswer').value.trim(),
+                correct_value: document.getElementById('correctValue').value.trim()
+            };
+
+            if (!data.problem || !data.model_answer) {
+                alert("❗ Vui lòng nhập đầy đủ bài toán và đáp án mẫu!");
+                return;
+            }
+
+            fetch('/save-teacher', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    alert("✅ Đã lưu bài tập mới!");
+                } else {
+                    alert("❌ Lỗi: " + (data.message || "Không lưu được"));
+                }
+            })
+            .catch(() => {
+                alert("❌ Không kết nối được đến máy chủ.");
+            });
+        }
+
+        // Upload file
+        document.getElementById('uploadForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('problemFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                document.getElementById('uploadStatus').innerHTML = '<span style="color:red">❌ Vui lòng chọn file!</span>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/upload-problem', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                const statusEl = document.getElementById('uploadStatus');
+                if (data.status === 'success') {
+                    statusEl.innerHTML = '<span style="color:green">✅ ' + data.message + '</span>';
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    statusEl.innerHTML = '<span style="color:red">❌ ' + data.message + '</span>';
+                }
+            } catch (err) {
+                document.getElementById('uploadStatus').innerHTML = '<span style="color:red">❌ Lỗi kết nối!</span>';
+                console.error(err);
+            }
+        };
+    </script>
+</body>
+</html>
