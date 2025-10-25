@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 import re
 import time
 import os
@@ -6,28 +6,40 @@ from werkzeug.utils import secure_filename
 from docx import Document
 import PyPDF2
 
-app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'  # Thay bằng chuỗi ngẫu nhiên
+# =====================================================
+# ✅ KHỞI TẠO ỨNG DỤNG FLASK CHUẨN CHO DEPLOY
+# =====================================================
+app = Flask(
+    __name__,
+    static_url_path='/static',
+    static_folder='static',
+    template_folder='templates'
+)
 
-# ==============================
-# CẤU HÌNH BẢO MẬT GIÁO VIÊN
-# ==============================
-TEACHER_EMAIL = "nguyenduycom89@gmail.com"  # ← SỬA THÀNH EMAIL THẬT CỦA BẠN
-TEACHER_PASSWORD = "nguyenmocgiao"  # ← MẬT KHẨU BẠN TỰ ĐẶT
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "your-secret-key-here")
 
-# ==============================
-# DỮ LIỆU
-# ==============================
+# =====================================================
+# ✅ CẤU HÌNH GIÁO VIÊN (TÀI KHOẢN ADMIN)
+# =====================================================
+TEACHER_EMAIL = os.environ.get("TEACHER_EMAIL", "nguyenduycom89@gmail.com")
+TEACHER_PASSWORD = os.environ.get("TEACHER_PASSWORD", "nguyenmocgiao")
+
+# =====================================================
+# ✅ CẤU HÌNH UPLOAD & DỮ LIỆU
+# =====================================================
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
 
-# Danh sách bài toán (ngân hàng)
 PROBLEMS = [
     {
         "id": 1,
-        "text": "Một cửa hàng bán được 5 bao gạo với số tiền là 400000 đồng. Hỏi cửa hàng đó bán 8 bao gạo được bao nhiêu tiền?",
-        "model_answer": "Giá 1 bao gạo là: 400000 : 5 = 80000 (đồng). Giá 8 bao gạo là: 80000 × 8 = 640000 (đồng). Đáp số: 640000 đồng.",
+        "text": "Một cửa hàng bán được 5 bao gạo với số tiền là 400000 đồng. "
+                "Hỏi cửa hàng đó bán 8 bao gạo được bao nhiêu tiền?",
+        "model_answer": "Giá 1 bao gạo là: 400000 : 5 = 80000 (đồng). "
+                        "Giá 8 bao gạo là: 80000 × 8 = 640000 (đồng). "
+                        "Đáp số: 640000 đồng.",
         "correct_value": 640000,
         "topic": "Rút về đơn vị"
     }
@@ -35,9 +47,9 @@ PROBLEMS = [
 
 STUDENT_SUBMISSIONS = []
 
-# ==============================
-# HÀM HỖ TRỢ
-# ==============================
+# =====================================================
+# ✅ HÀM TIỆN ÍCH
+# =====================================================
 
 def extract_text_from_docx(filepath):
     doc = Document(filepath)
@@ -57,7 +69,6 @@ def parse_problem_file(content):
     model_answer = ""
     correct_value = 0
 
-    # Tách theo tiêu đề
     if "[BÀI TOÁN]" in content:
         start = content.find("[BÀI TOÁN]") + len("[BÀI TOÁN]")
         end = content.find("[ĐÁP ÁN MẪU]") if "[ĐÁP ÁN MẪU]" in content else len(content)
@@ -76,43 +87,36 @@ def parse_problem_file(content):
 
     return problem, model_answer, correct_value
 
-# ==============================
-# AI ĐÁNH GIÁ THEO THÔNG TƯ 27/2020 & 29/2022
-# ==============================
+# =====================================================
+# ✅ HÀM AI ĐÁNH GIÁ THEO TT27/2020 & 29/2022
+# =====================================================
 
 def evaluate_solution_v2(student_text, model_answer, correct_value):
-    """
-    Đánh giá theo 3 tiêu chí Thông tư:
-    1. Nhận biết & thông hiểu
-    2. Vận dụng
-    3. Vận dụng cao (diễn đạt, logic)
-    """
     text = student_text.lower()
     numbers = [int(x) for x in re.findall(r'\d+', text)] if re.findall(r'\d+', text) else []
 
     score = 0
     feedback = []
 
-    # Tiêu chí 1: Nhận biết dạng toán (rút về đơn vị)
+    # Nhận biết dạng toán
     if any(kw in text for kw in ["1 bao", "mỗi bao", "một bao", "giá mỗi", "tiền mỗi"]):
         score += 3
         feedback.append("✅ Em nhận diện đúng dạng toán 'rút về đơn vị' – rất tốt!")
     else:
         feedback.append("💡 Gợi ý: Em hãy tìm giá trị của 1 đơn vị trước.")
 
-    # Tiêu chí 2: Vận dụng tính toán
+    # Vận dụng tính toán
     if correct_value in numbers:
         score += 4
         feedback.append("✅ Em tính đúng đáp số – tuyệt vời!")
     elif len(numbers) >= 2:
-        # Kiểm tra có phép chia và nhân hợp lý
         if any(n == 400000 for n in numbers) and any(n == 5 for n in numbers):
             feedback.append("📝 Em đã ghi đúng dữ kiện, nhớ chia để tìm 1 bao.")
         if any(n == 8 for n in numbers) and any(n == 80000 for n in numbers):
             feedback.append("✏️ Em nhớ nhân giá 1 bao với 8 để ra kết quả.")
 
-    # Tiêu chí 3: Diễn đạt lời giải (theo Thông tư: trình bày rõ ràng)
-    sentences = student_text.split('\n')
+    # Trình bày
+    sentences = [s for s in student_text.split('\n') if s.strip()]
     if len(sentences) >= 3 or ('-' in student_text) or ('bước' in text):
         score += 3
         feedback.append("🌟 Em trình bày lời giải rõ ràng, đủ bước – rất đáng khen!")
@@ -121,19 +125,15 @@ def evaluate_solution_v2(student_text, model_answer, correct_value):
 
     score = min(score, 10)
 
-    # Ánh xạ sang 4 mức theo Thông tư 29/2022
+    # Đánh giá theo 4 mức
     if score >= 9:
-        level = "Hoàn thành xuất sắc"
-        level_class = "excellent"
+        level, level_class = "Hoàn thành xuất sắc", "excellent"
     elif score >= 7:
-        level = "Hoàn thành tốt"
-        level_class = "good"
+        level, level_class = "Hoàn thành tốt", "good"
     elif score >= 5:
-        level = "Hoàn thành"
-        level_class = "ok"
+        level, level_class = "Hoàn thành", "ok"
     else:
-        level = "Chưa hoàn thành"
-        level_class = "fail"
+        level, level_class = "Chưa hoàn thành", "fail"
 
     return {
         "score": score,
@@ -147,9 +147,14 @@ def evaluate_solution_v2(student_text, model_answer, correct_value):
         }
     }
 
-# ==============================
-# ROUTES
-# ==============================
+# =====================================================
+# ✅ ROUTES: GIAO DIỆN
+# =====================================================
+
+@app.context_processor
+def inject_time():
+    """Inject biến time để tránh cache CSS"""
+    return dict(time=time)
 
 @app.route('/')
 def index():
@@ -157,7 +162,6 @@ def index():
 
 @app.route('/student')
 def student():
-    # Lấy bài toán đầu tiên (hoặc ngẫu nhiên)
     problem = PROBLEMS[0] if PROBLEMS else {"text": "Chưa có bài tập."}
     return render_template('student.html', problem=problem["text"])
 
@@ -167,23 +171,37 @@ def teacher_login():
         email = request.form.get('email')
         password = request.form.get('password')
         if email == TEACHER_EMAIL and password == TEACHER_PASSWORD:
+            session['is_teacher'] = True
+            flash("✅ Đăng nhập thành công!", "success")
             return redirect(url_for('teacher_dashboard'))
         else:
             flash("❌ Sai email hoặc mật khẩu!", "error")
     return render_template('teacher_login.html')
 
+@app.route('/teacher-logout')
+def teacher_logout():
+    session.pop('is_teacher', None)
+    flash("🔒 Đã đăng xuất!", "info")
+    return redirect(url_for('index'))
+
 @app.route('/teacher')
 def teacher_dashboard():
-    # Kiểm tra đã đăng nhập chưa? (đơn giản: kiểm tra session hoặc redirect)
-    # Trong phiên bản này: chỉ vào được qua /teacher-login
     return render_template(
         'teacher.html',
         problems=PROBLEMS,
-        submissions=STUDENT_SUBMISSIONS
+        submissions=STUDENT_SUBMISSIONS,
+        is_teacher=session.get('is_teacher', False)
     )
+
+# =====================================================
+# ✅ ROUTES: XỬ LÝ DỮ LIỆU
+# =====================================================
 
 @app.route('/upload-problem', methods=['POST'])
 def upload_problem():
+    if not session.get('is_teacher'):
+        return jsonify({"status": "error", "message": "Bạn chưa đăng nhập!"}), 403
+
     if 'file' not in request.files:
         return jsonify({"status": "error", "message": "Chưa chọn file"}), 400
 
@@ -191,55 +209,50 @@ def upload_problem():
     if file.filename == '':
         return jsonify({"status": "error", "message": "File rỗng"}), 400
 
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
 
-        # Đọc nội dung
-        try:
-            if filename.endswith('.docx'):
-                content = extract_text_from_docx(filepath)
-            elif filename.endswith('.pdf'):
-                content = extract_text_from_pdf(filepath)
-            else:
-                return jsonify({"status": "error", "message": "Chỉ hỗ trợ .docx và .pdf"}), 400
+    try:
+        if filename.endswith('.docx'):
+            content = extract_text_from_docx(filepath)
+        elif filename.endswith('.pdf'):
+            content = extract_text_from_pdf(filepath)
+        else:
+            return jsonify({"status": "error", "message": "Chỉ hỗ trợ .docx hoặc .pdf"}), 400
 
-            problem, model_answer, correct_value = parse_problem_file(content)
+        problem, model_answer, correct_value = parse_problem_file(content)
+        if not problem:
+            return jsonify({"status": "error", "message": "Không tìm thấy [BÀI TOÁN] trong file"}), 400
 
-            if not problem:
-                return jsonify({"status": "error", "message": "Không tìm thấy [BÀI TOÁN] trong file"}), 400
+        new_id = max([p["id"] for p in PROBLEMS]) + 1
+        PROBLEMS.append({
+            "id": new_id,
+            "text": problem,
+            "model_answer": model_answer,
+            "correct_value": correct_value,
+            "topic": "Tự động"
+        })
 
-            # Thêm vào ngân hàng
-            new_id = max([p["id"] for p in PROBLEMS], default=0) + 1
-            PROBLEMS.append({
-                "id": new_id,
-                "text": problem,
-                "model_answer": model_answer,
-                "correct_value": correct_value,
-                "topic": "Tự động"
-            })
+        return jsonify({"status": "success", "message": f"✅ Đã thêm bài mới! Tổng: {len(PROBLEMS)} bài."})
 
-            return jsonify({"status": "success", "message": f"Đã thêm bài tập mới! Tổng: {len(PROBLEMS)} bài."})
-
-        except Exception as e:
-            return jsonify({"status": "error", "message": f"Lỗi xử lý file: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Lỗi xử lý file: {str(e)}"}), 500
 
 @app.route('/submit', methods=['POST'])
 def submit():
     try:
         data = request.get_json()
-        answer = data.get("answer", "").strip()
+        answer = (data.get("answer") or "").strip()
         start_time = data.get("start_time", time.time())
 
         if not answer:
             return jsonify({"error": "Lời giải không được để trống"}), 400
 
-        # Dùng bài toán đầu tiên để chấm
-        current = PROBLEMS[0] if PROBLEMS else {"model_answer": "", "correct_value": 0}
+        current = PROBLEMS[0]
         result = evaluate_solution_v2(answer, current["model_answer"], current["correct_value"])
 
-        duration_sec = time.time() - start_time
+        duration_sec = time.time() - float(start_time)
         minutes = int(duration_sec // 60)
         seconds = int(duration_sec % 60)
         result["duration"] = f"{minutes} phút {seconds} giây"
@@ -251,18 +264,30 @@ def submit():
         })
 
         return jsonify(result)
-
     except Exception as e:
-        return jsonify({"error": "Có lỗi khi xử lý bài làm"}), 500
+        return jsonify({"error": f"Lỗi xử lý bài làm: {str(e)}"}), 500
 
 @app.route('/ask-teacher', methods=['POST'])
 def ask_teacher():
     return jsonify({
         "status": "success",
-        "message": "Tin nhắn của em đã được gửi đến thầy/cô! Thầy/cô sẽ trả lời sớm nhất nhé."
+        "message": "📩 Tin nhắn của em đã được gửi đến Thầy/Cô!"
     })
 
-# ==============================
+# =====================================================
+# ✅ KHẮC PHỤC CACHE GIAO DIỆN & CSS
+# =====================================================
+
+@app.after_request
+def add_header(response):
+    response.cache_control.no_store = True
+    response.cache_control.no_cache = True
+    response.headers['Pragma'] = 'no-cache'
+    return response
+
+# =====================================================
+# ✅ CHẠY ỨNG DỤNG
+# =====================================================
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5001))  # Render cung cấp biến PORT
+    port = int(os.environ.get("PORT", 5001))
     app.run(host='0.0.0.0', port=port)
