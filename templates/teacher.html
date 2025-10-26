@@ -113,6 +113,18 @@
             color: #666;
             font-size: 0.9em;
         }
+        form h3 {
+            margin-top: 20px;
+            color: #1976d2;
+        }
+        #aiResult {
+            margin-top: 10px;
+            padding: 12px;
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            border-radius: 4px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -126,7 +138,30 @@
         <div class="card">
             <h2>📝 Quản lý bài tập</h2>
             <p>Hiện có <strong>{{ problems|length }}</strong> bài tập.</p>
-            <!-- (Bạn có thể thêm form tạo bài ở đây nếu cần) -->
+
+            <!-- Thêm bài thủ công -->
+            <h3>✏️ Thêm bài toán thủ công</h3>
+            <form id="manualProblemForm" style="margin-bottom:20px;">
+                <textarea name="problem" placeholder="Nhập đề bài..." rows="3" style="width:100%; margin-bottom:8px;" required></textarea>
+                <textarea name="model_answer" placeholder="Nhập đáp án mẫu (có lời giải chi tiết)..." rows="3" style="width:100%; margin-bottom:8px;" required></textarea>
+                <input type="number" name="correct_value" placeholder="Đáp số (số nguyên)" style="width:100%; margin-bottom:10px;" required>
+                <button type="button" class="btn-save" onclick="saveManualProblem()">💾 Lưu bài</button>
+            </form>
+
+            <!-- Tạo bài bằng AI -->
+            <h3>🤖 Tạo bài toán tương tự bằng AI</h3>
+            <form id="aiProblemForm" style="margin-bottom:20px;">
+                <textarea name="base_problem" placeholder="Dán một bài toán mẫu để AI tạo bài mới tương tự..." rows="3" style="width:100%; margin-bottom:8px;" required></textarea>
+                <button type="button" class="btn-save" onclick="generateAIProblem()">🧠 Tạo bài bằng AI</button>
+            </form>
+            <div id="aiResult"></div>
+
+            <!-- Upload file -->
+            <h3>📤 Tải lên file đề bài (.docx, .pdf)</h3>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" name="file" accept=".docx,.pdf" style="width:100%; margin-bottom:10px;" required>
+                <button type="button" class="btn-save" onclick="uploadProblemFile()">📁 Tải lên và phân tích</button>
+            </form>
         </div>
 
         <!-- Bài làm học sinh -->
@@ -187,6 +222,7 @@
     </footer>
 
     <script>
+        // =============== CHẤM THỦ CÔNG ===============
         async function saveManualGrade(submissionId) {
             const score = document.getElementById(`score-${submissionId}`).value;
             const level = document.getElementById(`level-${submissionId}`).value;
@@ -212,7 +248,7 @@
             const data = await res.json();
             if (data.status === "success") {
                 alert("✅ Đã lưu nhận xét thành công!");
-                location.reload(); // Tải lại để cập nhật trạng thái "Đã chấm thủ công"
+                location.reload();
             } else {
                 alert("❌ Lỗi: " + data.message);
             }
@@ -223,6 +259,94 @@
             if (level === "Hoàn thành tốt") return "good";
             if (level === "Hoàn thành") return "ok";
             return "fail";
+        }
+
+        // =============== LƯU BÀI THỦ CÔNG ===============
+        async function saveManualProblem() {
+            const form = document.querySelector('#manualProblemForm');
+            const data = {
+                problem: form.querySelector('[name="problem"]').value.trim(),
+                model_answer: form.querySelector('[name="model_answer"]').value.trim(),
+                correct_value: parseInt(form.querySelector('[name="correct_value"]').value)
+            };
+            if (!data.problem || !data.model_answer || isNaN(data.correct_value)) {
+                alert("Vui lòng điền đủ thông tin!");
+                return;
+            }
+            const res = await fetch('/save-teacher', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            alert(result.message || "Lưu thành công!");
+            if (result.status === "success") location.reload();
+        }
+
+        // =============== TẠO BÀI BẰNG AI ===============
+        async function generateAIProblem() {
+            const base = document.querySelector('#aiProblemForm [name="base_problem"]').value.trim();
+            if (!base) {
+                alert("Vui lòng nhập bài toán mẫu!");
+                return;
+            }
+            const res = await fetch('/generate-ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ problem: base })
+            });
+            const data = await res.json();
+            const aiResultDiv = document.getElementById('aiResult');
+            if (data.status === "success") {
+                aiResultDiv.innerHTML = `<h4>✅ Bài toán AI tạo:</h4><pre style="white-space:pre-wrap;">${data.generated}</pre>
+                <button class="btn-save" onclick="saveAIGenerated()">💾 Lưu bài này</button>`;
+                aiResultDiv.style.display = 'block';
+                window.aiGeneratedText = data.generated;
+            } else {
+                aiResultDiv.innerHTML = `<p style="color:red;">❌ ${data.message}</p>`;
+                aiResultDiv.style.display = 'block';
+            }
+        }
+
+        // =============== LƯU BÀI DO AI TẠO ===============
+        async function saveAIGenerated() {
+            const text = window.aiGeneratedText || "";
+            const match = text.match(/\[BÀI TOÁN\](.*?)\[ĐÁP ÁN MẪU\](.*?)\[ĐÁP SỐ\](\s*\d+)/s);
+            if (!match) {
+                alert("❌ Định dạng bài AI không hợp lệ!");
+                return;
+            }
+            const res = await fetch('/save-teacher', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    problem: match[1].trim(),
+                    model_answer: match[2].trim(),
+                    correct_value: parseInt(match[3])
+                })
+            });
+            const data = await res.json();
+            alert(data.message || "Lưu thành công!");
+            if (data.status === "success") location.reload();
+        }
+
+        // =============== UPLOAD FILE ===============
+        async function uploadProblemFile() {
+            const fileInput = document.querySelector('#uploadForm [name="file"]');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert("Chưa chọn file!");
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/upload-problem', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            alert(data.message || "Tải lên thành công!");
+            if (data.status === "success") location.reload();
         }
     </script>
 </body>
