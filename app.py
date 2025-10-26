@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()  # ← Tải biến môi trường từ file .env
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 import re, os, time, random, requests
@@ -9,6 +11,7 @@ import threading
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
 
 # ==============================
 # CẤU HÌNH ỨNG DỤNG
@@ -114,22 +117,59 @@ def evaluate_solution_v2(student_text, model_answer, correct_value):
     text = student_text.lower()
     nums = [int(x) for x in re.findall(r'\d+', text)] if re.findall(r'\d+', text) else []
     score, fb = 0, []
-    if any(kw in text for kw in ["1 bao", "mỗi bao", "1 đơn vị", "giá mỗi"]):
+    guide = {
+        "steps": [],
+        "tips": []
+    }
+
+    # === BƯỚC 1: Nhận diện dạng toán ===
+    is_unit_reduction = any(kw in text for kw in ["1 bao", "mỗi bao", "1 đơn vị", "giá mỗi", "mỗi kg", "mỗi hộp", "1 hộp", "1 kg"])
+    if is_unit_reduction:
         score += 3
         fb.append("✅ Em nhận diện đúng dạng toán 'rút về đơn vị'.")
     else:
         fb.append("💡 Gợi ý: Em hãy tìm giá trị của 1 đơn vị trước.")
+        guide["tips"].append("Hãy xác định: '1 đơn vị' trong bài là gì? (1 bao gạo, 1 cái kệ, 1 kg đường...)")
+    
+    # === BƯỚC 2: Kiểm tra đáp số ===
     if correct_value in nums:
         score += 4
         fb.append("✅ Em tính đúng đáp số – rất tốt!")
-    elif len(nums) >= 2:
+    else:
         fb.append("✏️ Em cần chia tổng cho số lượng để tìm giá 1 đơn vị, rồi nhân với số cần hỏi.")
+        if not is_unit_reduction:
+            guide["tips"].append("Ví dụ: Nếu 5 bao = 400000 đồng → 1 bao = 400000 : 5 = 80000 đồng.")
+
+    # === BƯỚC 3: Kiểm tra trình bày ===
     lines = [s for s in student_text.split('\n') if s.strip()]
-    if len(lines) >= 3 or "bước" in text:
+    has_steps = len(lines) >= 3 or "bước" in text or "b1" in text or "b2" in text
+    if has_steps:
         score += 3
         fb.append("🌟 Lời giải rõ ràng, đủ bước – rất đáng khen!")
     else:
         fb.append("📄 Gợi ý: Em nên viết lời giải theo từng bước (Bước 1, Bước 2...).")
+        guide["tips"].append("Viết rõ từng bước giúp Thầy dễ chấm và em dễ kiểm tra lại.")
+
+    # === TỰ ĐỘNG SINH HƯỚNG DẪN CHUẨN (2 bước) ===
+    # Trích từ model_answer hoặc tạo mặc định
+    try:
+        # Giả sử model_answer có dạng: "Giá 1 bao... = ... (đồng). Giá 8 bao... = ... (đồng)."
+        sentences = [s.strip() for s in model_answer.replace(".", "\n").split("\n") if s.strip()]
+        if len(sentences) >= 2:
+            guide["steps"] = [
+                f"Bước 1: {sentences[0]}",
+                f"Bước 2: {sentences[1]}"
+            ]
+        else:
+            # Dự phòng nếu model_answer không chuẩn
+            raise ValueError("Model answer too short")
+    except:
+        # Tạo hướng dẫn mặc định cho dạng "rút về đơn vị"
+        guide["steps"] = [
+            "Bước 1: Tìm giá trị của 1 đơn vị (bằng cách chia tổng cho số lượng ban đầu).",
+            "Bước 2: Tìm giá trị của số đơn vị cần tìm (bằng cách nhân giá 1 đơn vị với số lượng mới)."
+        ]
+
     score = min(score, 10)
     if score >= 9:
         level, cls = "Hoàn thành xuất sắc", "excellent"
@@ -139,7 +179,14 @@ def evaluate_solution_v2(student_text, model_answer, correct_value):
         level, cls = "Hoàn thành", "ok"
     else:
         level, cls = "Chưa hoàn thành", "fail"
-    return {"score": score, "level": level, "level_class": cls, "feedback": " ".join(fb)}
+
+    return {
+        "score": score,
+        "level": level,
+        "level_class": cls,
+        "feedback": " ".join(fb),
+        "guide": guide  # ← Thêm phần hướng dẫn
+    }
 
 # ==============================
 # GỬI EMAIL THÔNG BÁO (giữ nguyên)

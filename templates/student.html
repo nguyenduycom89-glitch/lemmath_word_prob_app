@@ -42,6 +42,22 @@
             color: #666;
             font-size: 0.9em;
         }
+        .result-box {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f0f8ff;
+            border-radius: 10px;
+            border: 1px solid #cce5ff;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .excellent { background: #c8e6c9; color: #2e7d32; }
+        .good { background: #ffecb3; color: #5d4037; }
+        .ok { background: #bbdefb; color: #0d47a1; }
+        .fail { background: #ffcdd2; color: #b71c1c; }
     </style>
 </head>
 <body>
@@ -93,6 +109,7 @@
         <!-- Kết quả -->
         <div id="result" class="result-box" style="display: none;">
             <h3>🎉 Kết quả của em!</h3>
+            <p>✅ <strong>Bài làm của em đã được gửi đến Thầy Nguyễn Đức Duy!</strong></p>
             <p><strong>⏱️ Thời gian làm bài:</strong> <span id="duration"></span></p>
             <p><strong>🎯 Đánh giá:</strong> <span id="level" class="badge"></span></p>
             <p><strong>💬 Nhận xét:</strong> <span id="feedback"></span></p>
