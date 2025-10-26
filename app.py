@@ -8,7 +8,7 @@ import threading
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from flask_mail import Mail
+
 
 # ==============================
 # CẤU HÌNH ỨNG DỤNG
@@ -27,7 +27,7 @@ app.config['MAIL_PASSWORD'] = os.environ.get("MAIL_PASSWORD", "")
 TEACHER_EMAIL = os.environ.get("TEACHER_EMAIL", "nguyenduycom89@gmail.com")
 TEACHER_PASSWORD = os.environ.get("TEACHER_PASSWORD", "nguyenmocgiao")
 
-mail = Mail(app)
+
 
 # ==============================
 # DỮ LIỆU / UPLOAD
