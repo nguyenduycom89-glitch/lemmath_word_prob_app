@@ -242,7 +242,7 @@ def teacher_dashboard():
     for sub in submissions:
         sub.time_submitted_formatted = sub.time_submitted.strftime("%H:%M - %d/%m/%Y")
         sub.time_submitted_raw = sub.time_submitted.strftime("%Y-%m-%d %H:%M:%S")
-        sub.image_url = f"/static/uploads/{os.path.basename(sub.image_path)}" if sub.image_path else None
+        sub.image_url = url_for('uploaded_file', filename=os.path.basename(sub.image_path)) if sub.image_path else None
         # Tái tạo `result` và `final_result` để tương thích template
         sub.result = {
             "score": sub.ai_score,
@@ -470,12 +470,11 @@ def upload_problem():
     })
 
 # ==============================
-# PHỤC VỤ ẢNH
+# PHỤC VỤ ẢNH TỪ THƯ MỤC UPLOADS
 # ==============================
-@app.route('/static/uploads/<filename>')
+@app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
 # ==============================
 # MAIN
 # ==============================

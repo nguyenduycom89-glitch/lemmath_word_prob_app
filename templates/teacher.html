@@ -171,7 +171,7 @@
                 {% for sub in submissions %}
                 <div class="submission-item">
                     <h3>📌 ID: {{ sub.id }} | Học sinh: <strong>{{ sub.student_name }}</strong></h3>
-                    <p><strong>Thời gian nộp:</strong> {{ sub.time_submitted }}</p>
+                    <p><strong>Thời gian nộp:</strong> {{ sub.time_submitted_formatted }}</p>
                     <p><strong>Lời giải văn bản:</strong></p>
                     <p style="background:#f1f1f1; padding:10px; border-radius:6px;">{{ sub.answer }}</p>
 
