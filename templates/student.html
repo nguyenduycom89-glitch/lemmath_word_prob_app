@@ -21,6 +21,27 @@
         .top-buttons { display: flex; justify-content: space-between; margin-bottom: 10px; }
         .btn-home { background-color: #f1f1f1; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: 1px solid #ccc; }
         .btn-home:hover { background-color: #e0e0e0; }
+        .upload-section {
+            margin: 15px 0;
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border: 1px dashed #ccc;
+        }
+        .upload-section label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #1976d2;
+        }
+        .upload-section input[type="file"] {
+            width: 100%;
+            margin: 6px 0;
+        }
+        .upload-section small {
+            color: #666;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -30,7 +51,7 @@
 
         <h1>📘 Giải Toán Có Lời Văn – Lớp 4</h1>
 
-        <!-- Nút quay lại luôn hiển thị -->
+        <!-- Nút quay lại -->
         <div class="top-buttons">
             <button class="btn-home" onclick="window.location.href='/'">🏠 Quay lại trang chủ</button>
         </div>
@@ -43,21 +64,31 @@
             <div class="problem-content" id="problemContent">{{ problem }}</div>
         </div>
 
-        <!-- Ô nhập lời giải -->
-        <div class="solution-box">
-            <textarea id="studentAnswer" rows="8"
-                placeholder="Em hãy viết lời giải vào đây nhé... Ví dụ:
+        <!-- Form nộp bài (hỗ trợ văn bản + ảnh) -->
+        <form id="solutionForm" enctype="multipart/form-data">
+            <!-- Ô nhập lời giải -->
+            <div class="solution-box">
+                <textarea id="studentAnswer" name="answer" rows="8"
+                    placeholder="Em hãy viết lời giải vào đây nhé... Ví dụ:
 - Bước 1: Tính giá tiền 1 bao gạo.
 - 400000 : 5 = 80000 (đồng)
 - Bước 2: Tính giá tiền 8 bao gạo.
 - 80000 × 8 = 640000 (đồng)
 - Đáp số: 640000 đồng"></textarea>
-        </div>
+            </div>
 
-        <!-- Nút gửi -->
-        <button class="btn-submit" onclick="submitAnswer()">
-            <i class="fas fa-paper-plane"></i> Gửi bài làm
-        </button>
+            <!-- Upload ảnh -->
+            <div class="upload-section">
+                <label for="imageUpload">📸 Chụp hoặc chọn ảnh bài làm (nếu có):</label>
+                <input type="file" id="imageUpload" name="image" accept="image/*">
+                <small>(Định dạng: JPG, PNG – tối đa 10MB)</small>
+            </div>
+
+            <input type="hidden" id="startTimeInput" name="start_time">
+            <button class="btn-submit" type="button" onclick="submitWithImage()">
+                <i class="fas fa-paper-plane"></i> Gửi bài làm
+            </button>
+        </form>
 
         <!-- Kết quả -->
         <div id="result" class="result-box" style="display: none;">
@@ -95,50 +126,60 @@
     <script>
         let startTime = new Date().getTime();
 
-        async function submitAnswer() {
+        function submitWithImage() {
             const answer = document.getElementById('studentAnswer').value.trim();
             if (!answer) {
                 alert("❗ Em chưa viết lời giải!");
                 return;
             }
 
-            const res = await fetch('/submit', {
+            const form = document.getElementById('solutionForm');
+            const formData = new FormData(form);
+            formData.set('start_time', startTime / 1000);
+
+            fetch('/submit', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({answer: answer, start_time: startTime / 1000})
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    alert("❌ " + data.error);
+                    return;
+                }
+
+                // Hiển thị kết quả
+                document.getElementById('duration').innerText = data.duration || '';
+                document.getElementById('level').innerText = data.level || '';
+                document.getElementById('level').className = 'badge ' + (data.level_class || '');
+                document.getElementById('feedback').innerText = data.feedback || '';
+
+                // Hiển thị hướng dẫn
+                const guide = data.guide || {};
+                const stepsEl = document.getElementById('guideSteps');
+                const tipsEl = document.getElementById('guideTips');
+                stepsEl.innerHTML = '';
+                tipsEl.innerHTML = '';
+
+                (guide.steps || []).forEach(s => {
+                    const li = document.createElement('li');
+                    li.textContent = s;
+                    stepsEl.appendChild(li);
+                });
+                (guide.tips || []).forEach(t => {
+                    const li = document.createElement('li');
+                    li.textContent = t;
+                    tipsEl.appendChild(li);
+                });
+
+                document.getElementById('guideBox').style.display = (guide.steps && guide.steps.length > 0) ? 'block' : 'none';
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+            })
+            .catch(err => {
+                console.error(err);
+                alert("⚠️ Gửi bài thất bại. Vui lòng thử lại sau.");
             });
-
-            const data = await res.json();
-
-            document.getElementById('duration').innerText = data.duration || '';
-            document.getElementById('level').innerText = data.level || '';
-            document.getElementById('level').className = 'badge ' + (data.level_class || '');
-            document.getElementById('feedback').innerText = data.feedback || '';
-
-            // Hiển thị hướng dẫn từng bước
-            const guide = data.guide || {};
-            const steps = guide.steps || [];
-            const tips = guide.tips || [];
-
-            const stepsEl = document.getElementById('guideSteps');
-            const tipsEl = document.getElementById('guideTips');
-            stepsEl.innerHTML = '';
-            tipsEl.innerHTML = '';
-
-            steps.forEach(s => {
-                const li = document.createElement('li');
-                li.textContent = s;
-                stepsEl.appendChild(li);
-            });
-            tips.forEach(t => {
-                const li = document.createElement('li');
-                li.textContent = t;
-                tipsEl.appendChild(li);
-            });
-
-            document.getElementById('guideBox').style.display = steps.length ? 'block' : 'none';
-            document.getElementById('result').style.display = 'block';
-            document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
         }
 
         function askTeacher() {

@@ -1,207 +1,229 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>👨‍🏫 Giao diện Giáo viên</title>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ time.time() }}">
-  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
-  <style>
-    .btn-ai {background:#4CAF50;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;}
-    .btn-ai:hover{background:#388E3C;}
-    .manual-grade {margin-top:10px;padding:10px;background:#f8f8f8;border-radius:8px;}
-    .manual-grade label{font-weight:bold;}
-    .top-buttons {display:flex;justify-content:space-between;margin-bottom:10px;}
-    .btn-home {background:#e3f2fd;border:1px solid #2196f3;border-radius:8px;padding:8px 14px;color:#0d47a1;font-weight:bold;cursor:pointer;}
-    .btn-home:hover {background:#bbdefb;}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👨‍🏫 Bảng điều khiển giáo viên – Giải Toán Lớp 4</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ time.time() }}">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Nunito', sans-serif;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #1976d2;
+        }
+        .header h1 {
+            color: #1976d2;
+        }
+        .btn-logout {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .btn-logout:hover {
+            background: #d32f2f;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .submission-item {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+            background: #fafafa;
+        }
+        .submission-item h3 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .excellent { background: #c8e6c9; color: #2e7d32; }
+        .good { background: #ffecb3; color: #5d4037; }
+        .ok { background: #bbdefb; color: #0d47a1; }
+        .fail { background: #ffcdd2; color: #b71c1c; }
+        .manual-grade {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px dashed #ccc;
+        }
+        .manual-grade label {
+            display: block;
+            margin: 8px 0 4px;
+            font-weight: 600;
+            color: #333;
+        }
+        .manual-grade input, .manual-grade select, .manual-grade textarea {
+            width: 100%;
+            padding: 6px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .btn-save {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-save:hover {
+            background: #388e3c;
+        }
+        img.submission-image {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-top: 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-header">
-    <h1>👨‍🏫 Giao diện Giáo viên</h1>
+    <div class="container">
+        <div class="header">
+            <h1>👨‍🏫 Bảng điều khiển giáo viên</h1>
+            <a href="{{ url_for('teacher_logout') }}" class="btn-logout">🔒 Đăng xuất</a>
+        </div>
 
-    <!-- Nút quay lại và đăng xuất -->
-    <div class="top-buttons">
-      <button class="btn-home" onclick="window.location.href='/'">🏠 Quay lại trang chủ</button>
-      {% if is_teacher %}
-      <button class="btn-logout" onclick="window.location.href='/teacher-logout'">🚪 Đăng xuất</button>
-      {% endif %}
-    </div>
+        <!-- Quản lý bài tập -->
+        <div class="card">
+            <h2>📝 Quản lý bài tập</h2>
+            <p>Hiện có <strong>{{ problems|length }}</strong> bài tập.</p>
+            <!-- (Bạn có thể thêm form tạo bài ở đây nếu cần) -->
+        </div>
 
-    <!-- Tạo bài thủ công -->
-    <div class="card">
-      <h2>✏️ Tạo bài tập thủ công</h2>
-      <label>Bài toán:</label>
-      <textarea id="problemText" rows="3" placeholder="Ví dụ: Một cửa hàng bán được 5 bao gạo..."></textarea>
+        <!-- Bài làm học sinh -->
+        <div class="card">
+            <h2>📊 Bài làm học sinh ({{ submissions|length if submissions else 0 }} bài)</h2>
+            {% if submissions %}
+                {% for sub in submissions %}
+                <div class="submission-item">
+                    <h3>📌 ID: {{ sub.id }} | Học sinh: <strong>{{ sub.student_name }}</strong></h3>
+                    <p><strong>Thời gian nộp:</strong> {{ sub.time_submitted }}</p>
+                    <p><strong>Lời giải văn bản:</strong></p>
+                    <p style="background:#f1f1f1; padding:10px; border-radius:6px;">{{ sub.answer }}</p>
 
-      <label>Đáp án mẫu:</label>
-      <textarea id="modelAnswer" rows="4" placeholder="Giá 1 bao gạo là: ..."></textarea>
+                    {% if sub.image_url %}
+                        <p><strong>📸 Ảnh bài làm:</strong></p>
+                        <img src="{{ sub.image_url }}" class="submission-image" alt="Bài làm học sinh">
+                    {% endif %}
 
-      <label>Đáp số đúng (số):</label>
-      <input type="number" id="correctValue" placeholder="Ví dụ: 640000">
+                    <p><strong>🤖 Đánh giá tự động (AI):</strong>
+                        <span class="badge {{ sub.result.level_class }}">{{ sub.result.level }}</span>
+                        – {{ sub.result.feedback }}
+                    </p>
 
-      <div style="margin-top:8px;">
-        <button class="btn-save" onclick="saveProblem()">💾 Lưu bài tập</button>
-        <button class="btn-ai" onclick="generateAIProblem()">🤖 Tạo bài tương tự</button>
-      </div>
-    </div>
+                    {% if is_teacher %}
+                    <div class="manual-grade">
+                        <h4>✍️ Nhận xét / Chấm thủ công</h4>
+                        <label>Điểm (0–10):</label>
+                        <input type="number" id="score-{{ sub.id }}" min="0" max="10"
+                               value="{{ sub.final_result.score if sub.manual_override else sub.result.score }}">
 
-    <!-- Import file -->
-    <div class="card" style="margin-top:25px;">
-      <h2>📤 Import bài tập từ Word/PDF</h2>
-      <pre class="format-example">
-[BÀI TOÁN]
-Một cửa hàng bán được 5 bao gạo với số tiền là 400000 đồng.
-[ĐÁP ÁN MẪU]
-Giá 1 bao gạo là: 400000 : 5 = 80000 (đồng).
-Giá 8 bao gạo là: 80000 × 8 = 640000 (đồng).
-[ĐÁP SỐ]
-640000
-      </pre>
-      <form id="uploadForm" enctype="multipart/form-data">
-        <input type="file" id="problemFile" accept=".docx,.pdf" required>
-        <button type="submit" class="btn-upload">📂 Tải lên</button>
-      </form>
-      <p id="uploadStatus"></p>
-    </div>
+                        <label>Mức đánh giá:</label>
+                        <select id="level-{{ sub.id }}">
+                            <option value="Hoàn thành xuất sắc" {% if (sub.manual_override and sub.final_result.level == "Hoàn thành xuất sắc") or (not sub.manual_override and sub.result.level == "Hoàn thành xuất sắc") %}selected{% endif %}>Hoàn thành xuất sắc</option>
+                            <option value="Hoàn thành tốt" {% if (sub.manual_override and sub.final_result.level == "Hoàn thành tốt") or (not sub.manual_override and sub.result.level == "Hoàn thành tốt") %}selected{% endif %}>Hoàn thành tốt</option>
+                            <option value="Hoàn thành" {% if (sub.manual_override and sub.final_result.level == "Hoàn thành") or (not sub.manual_override and sub.result.level == "Hoàn thành") %}selected{% endif %}>Hoàn thành</option>
+                            <option value="Chưa hoàn thành" {% if (sub.manual_override and sub.final_result.level == "Chưa hoàn thành") or (not sub.manual_override and sub.result.level == "Chưa hoàn thành") %}selected{% endif %}>Chưa hoàn thành</option>
+                        </select>
 
-    <!-- Danh sách bài làm học sinh -->
-    <div class="card" style="margin-top:25px;">
-      <h2>📊 Bài làm học sinh ({{ submissions|length if submissions else 0 }} bài)</h2>
-      {% if submissions %}
-        {% for sub in submissions %}
-          <div class="submission-item">
-            <p><strong>Lời giải học sinh:</strong> {{ sub.answer }}</p>
-            <p><strong>AI đánh giá:</strong>
-              <span class="badge {{ sub.result.level_class }}">{{ sub.result.level }}</span>
-              – {{ sub.result.feedback }}
-            </p>
-            <small>⏱️ Nộp lúc: {{ sub.time_submitted }}</small>
+                        <label>Nhận xét giáo viên:</label>
+                        <textarea id="feedback-{{ sub.id }}" rows="3" placeholder="Nhận xét chi tiết...">{{ sub.final_result.feedback if sub.manual_override else sub.result.feedback }}</textarea>
 
-            {% if is_teacher %}
-            <div class="manual-grade">
-              <h4>✍️ Nhận xét / Chấm thủ công</h4>
-              <label>Điểm (0–10):</label>
-              <input type="number" id="score-{{ sub.id }}" min="0" max="10"
-                     value="{{ sub.final_result.score if sub.manual_override else sub.result.score }}">
-
-              <label>Mức đánh giá:</label>
-              <select id="level-{{ sub.id }}">
-                <option value="Hoàn thành xuất sắc" {% if sub.final_result.level == "Hoàn thành xuất sắc" %}selected{% endif %}>Hoàn thành xuất sắc</option>
-                <option value="Hoàn thành tốt" {% if sub.final_result.level == "Hoàn thành tốt" %}selected{% endif %}>Hoàn thành tốt</option>
-                <option value="Hoàn thành" {% if sub.final_result.level == "Hoàn thành" %}selected{% endif %}>Hoàn thành</option>
-                <option value="Chưa hoàn thành" {% if sub.final_result.level == "Chưa hoàn thành" %}selected{% endif %}>Chưa hoàn thành</option>
-              </select>
-
-              <label>Nhận xét giáo viên:</label>
-              <textarea id="feedback-{{ sub.id }}" rows="3" placeholder="Nhận xét chi tiết...">{{ sub.final_result.feedback if sub.manual_override else sub.result.feedback }}</textarea>
-
-              <button class="btn-save" onclick="saveManualGrade({{ sub.id }})">💾 Ghi nhận xét</button>
-              {% if sub.manual_override %}
-                <p style="color:green;font-size:13px;">✅ Đã chấm thủ công</p>
-              {% endif %}
-            </div>
+                        <button class="btn-save" onclick="saveManualGrade({{ sub.id }})">💾 Ghi nhận xét</button>
+                        {% if sub.manual_override %}
+                            <p style="color:green; font-size:13px; margin-top:6px;">✅ Đã chấm thủ công</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color:#888; font-style:italic;">Chưa có học sinh nào nộp bài.</p>
             {% endif %}
-          </div>
-        {% endfor %}
-      {% else %}
-        <p style="color:#888;font-style:italic;">Chưa có học sinh nào nộp bài.</p>
-      {% endif %}
+        </div>
     </div>
-  </div>
 
-  <footer class="footer">
-    <p>© 2025 Giải Toán Có Lời Văn – Lớp 4 |
-      <strong>Giáo viên: Nguyễn Đức Duy</strong> |
-      📞 <a href="tel:0907804263">0907.804.263</a>
-    </p>
-  </footer>
+    <footer>
+        <p>© 2025 Hệ thống Giải Toán Có Lời Văn – Lớp 4 | Giáo viên: Nguyễn Đức Duy</p>
+    </footer>
 
-  <script>
-    // ===== Lưu bài tập thủ công =====
-    function saveProblem() {
-      const data = {
-        problem: document.getElementById('problemText').value.trim(),
-        model_answer: document.getElementById('modelAnswer').value.trim(),
-        correct_value: document.getElementById('correctValue').value.trim()
-      };
-      if (!data.problem || !data.model_answer) {
-        alert("❗ Vui lòng nhập đầy đủ bài toán và đáp án mẫu!");
-        return;
-      }
-      fetch('/save-teacher', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(data)
-      })
-      .then(res => res.json())
-      .then(data => alert(data.message || 'Đã lưu!'))
-      .catch(() => alert("❌ Lỗi khi kết nối máy chủ."));
-    }
+    <script>
+        async function saveManualGrade(submissionId) {
+            const score = document.getElementById(`score-${submissionId}`).value;
+            const level = document.getElementById(`level-${submissionId}`).value;
+            const feedback = document.getElementById(`feedback-${submissionId}`).value;
 
-    // ===== Upload file Word/PDF =====
-    document.getElementById('uploadForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const file = document.getElementById('problemFile').files[0];
-      if (!file) { document.getElementById('uploadStatus').innerText = '❌ Chưa chọn file!'; return; }
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/upload-problem', { method: 'POST', body: formData });
-      const data = await res.json();
-      document.getElementById('uploadStatus').innerText = data.message;
-    };
+            if (score === "" || feedback.trim() === "") {
+                alert("Vui lòng nhập đủ điểm và nhận xét!");
+                return;
+            }
 
-    // ===== Ghi nhận xét thủ công =====
-    async function saveManualGrade(id) {
-      const score = document.getElementById(`score-${id}`).value;
-      const level = document.getElementById(`level-${id}`).value;
-      const feedback = document.getElementById(`feedback-${id}`).value.trim();
-      let level_class = "ok";
-      if (level.includes("xuất sắc")) level_class = "excellent";
-      else if (level.includes("tốt")) level_class = "good";
-      else if (level.includes("Chưa")) level_class = "fail";
+            const res = await fetch('/grade-manual', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    submission_id: submissionId,
+                    score: parseInt(score),
+                    level: level,
+                    level_class: getLevelClass(level),
+                    feedback: feedback.trim()
+                })
+            });
 
-      const res = await fetch('/grade-manual', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          submission_id: id,
-          score: score,
-          level: level,
-          level_class: level_class,
-          feedback: feedback
-        })
-      });
-      const data = await res.json();
-      if (data.status === "success") {
-        alert(data.message);
-        setTimeout(() => location.reload(), 1000);
-      } else {
-        alert("❌ " + (data.message || "Không thể lưu nhận xét"));
-      }
-    }
+            const data = await res.json();
+            if (data.status === "success") {
+                alert("✅ Đã lưu nhận xét thành công!");
+                location.reload(); // Tải lại để cập nhật trạng thái "Đã chấm thủ công"
+            } else {
+                alert("❌ Lỗi: " + data.message);
+            }
+        }
 
-    // ===== Tạo bài tương tự bằng AI (Groq) =====
-    async function generateAIProblem() {
-      const baseProblem = document.getElementById('problemText').value.trim();
-      if (!baseProblem) {
-        alert("❗ Vui lòng nhập bài mẫu trước khi tạo tương tự!");
-        return;
-      }
-      const res = await fetch('/generate-ai', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ problem: baseProblem })
-      });
-      const data = await res.json();
-      if (data.status === "success") {
-        alert("✅ Bài tương tự đã tạo:\n\n" + data.generated);
-      } else {
-        alert("⚠️ " + (data.message || "Không tạo được bài."));
-      }
-    }
-  </script>
+        function getLevelClass(level) {
+            if (level === "Hoàn thành xuất sắc") return "excellent";
+            if (level === "Hoàn thành tốt") return "good";
+            if (level === "Hoàn thành") return "ok";
+            return "fail";
+        }
+    </script>
 </body>
 </html>
