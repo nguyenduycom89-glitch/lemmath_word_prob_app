@@ -8,7 +8,7 @@ import threading
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
+from flask_mail import Mail
 
 # ==============================
 # CẤU HÌNH ỨNG DỤNG
@@ -17,7 +17,7 @@ app = Flask(__name__, static_url_path='/static', static_folder='static', templat
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "secret-key-dev")
 
 # ==============================
-# CẤU HÌNH EMAIL (GỬI THÔNG BÁO CHO GIÁO VIÊN)
+# CẤU HÌNH EMAIL
 # ==============================
 app.config['MAIL_SERVER'] = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
 app.config['MAIL_PORT'] = int(os.environ.get("MAIL_PORT", 587))
@@ -27,7 +27,7 @@ app.config['MAIL_PASSWORD'] = os.environ.get("MAIL_PASSWORD", "")
 TEACHER_EMAIL = os.environ.get("TEACHER_EMAIL", "nguyenduycom89@gmail.com")
 TEACHER_PASSWORD = os.environ.get("TEACHER_PASSWORD", "nguyenmocgiao")
 
-
+mail = Mail(app)
 
 # ==============================
 # DỮ LIỆU / UPLOAD
@@ -36,8 +36,6 @@ UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
-
-# Hỗ trợ cả tài liệu và ảnh
 ALLOWED_EXT = {'.docx', '.pdf', '.png', '.jpg', '.jpeg', '.webp'}
 
 PROBLEMS = [
@@ -61,7 +59,6 @@ SUBMISSION_SEQ = 1
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-
 
 # ==============================
 # TIỆN ÍCH
@@ -100,9 +97,8 @@ def parse_problem_file(content):
         })
     return problems
 
-
 # ==============================
-# AI ĐÁNH GIÁ (rule-based)
+# AI ĐÁNH GIÁ
 # ==============================
 def evaluate_solution_v2(student_text, model_answer, correct_value):
     text = student_text.lower()
@@ -141,9 +137,8 @@ def evaluate_solution_v2(student_text, model_answer, correct_value):
 
     return {"score": score, "level": level, "level_class": cls, "feedback": " ".join(fb)}
 
-
 # ==============================
-# AI HƯỚNG DẪN TỪNG BƯỚC
+# AI HƯỚNG DẪN
 # ==============================
 def ai_step_by_step(problem_text, correct_value=None):
     txt = (problem_text or "").lower()
@@ -180,9 +175,8 @@ def ai_step_by_step(problem_text, correct_value=None):
 
     return {"method": detected, "steps": steps, "tips": tips}
 
-
 # ==============================
-# XÓA BÀI CŨ SAU 72 GIỜ (CHẠY NỀN)
+# DỌN DẸP BÀI CŨ SAU 72H
 # ==============================
 def cleanup_old_submissions():
     while True:
@@ -199,13 +193,12 @@ def cleanup_old_submissions():
                 print(f"[Cleanup] Lỗi xử lý bài {sub.get('id')}: {e}")
         for sub in to_remove:
             STUDENT_SUBMISSIONS.remove(sub)
-        time.sleep(3600)  # mỗi giờ kiểm tra 1 lần
+        time.sleep(3600)
 
 threading.Thread(target=cleanup_old_submissions, daemon=True).start()
 
-
 # ==============================
-# GỬI EMAIL THÔNG BÁO CHO GIÁO VIÊN
+# GỬI EMAIL THÔNG BÁO
 # ==============================
 def send_teacher_notification(student_name, submission_id, url_root):
     try:
@@ -231,7 +224,6 @@ Trân trọng!"""
     except Exception as e:
         print(f"[ERROR] Gửi email thất bại: {e}")
 
-
 # ==============================
 # CONTEXT PROCESSOR
 # ==============================
@@ -239,18 +231,13 @@ Trân trọng!"""
 def inject_time():
     return dict(time=time)
 
-
 # ==============================
-# ROUTES: PUBLIC
+# ROUTES CÔNG KHAI
 # ==============================
 @app.route('/')
 def index():
     return render_template('index.html')
 
-
-# ==============================
-# ROUTE: ĐĂNG NHẬP HỌC SINH
-# ==============================
 @app.route('/student-login', methods=['GET', 'POST'])
 def student_login():
     if request.method == 'POST':
@@ -261,10 +248,6 @@ def student_login():
         flash("❌ Tên học sinh không hợp lệ (2–30 ký tự).", "error")
     return render_template('student_login.html')
 
-
-# ==============================
-# ROUTE: HỌC SINH LÀM BÀI
-# ==============================
 @app.route('/student')
 def student():
     if not session.get('student_name'):
@@ -272,9 +255,8 @@ def student():
     problem = PROBLEMS[0] if PROBLEMS else {"text": "Chưa có bài tập."}
     return render_template('student.html', problem=problem["text"])
 
-
 # ==============================
-# ROUTES: AUTH GIÁO VIÊN
+# ROUTES GIÁO VIÊN
 # ==============================
 @app.route('/teacher-login', methods=['GET', 'POST'])
 def teacher_login():
@@ -294,10 +276,6 @@ def teacher_logout():
     flash("🔒 Đã đăng xuất!", "info")
     return redirect('/')
 
-
-# ==============================
-# ROUTE: DASHBOARD GIÁO VIÊN
-# ==============================
 @app.route('/teacher')
 def teacher_dashboard():
     if not session.get('is_teacher'):
@@ -309,9 +287,8 @@ def teacher_dashboard():
         is_teacher=True
     )
 
-
 # ==============================
-# ROUTE: NỘP BÀI (HỖ TRỢ VĂN BẢN + ẢNH)
+# NỘP BÀI HỌC SINH
 # ==============================
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -319,7 +296,6 @@ def submit():
     student_name = session.get('student_name', 'Ẩn danh')
     start_time = time.time()
 
-    # Lấy lời giải
     answer_text = ""
     if request.is_json:
         data = request.get_json()
@@ -335,7 +311,6 @@ def submit():
     if not answer_text:
         return jsonify({"error": "Lời giải không được để trống."}), 400
 
-    # Lưu ảnh (nếu có)
     image_path = None
     if 'image' in request.files:
         file = request.files['image']
@@ -346,14 +321,12 @@ def submit():
                 image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(image_path)
 
-    # Đánh giá
     current = PROBLEMS[0] if PROBLEMS else {"text": "", "model_answer": "", "correct_value": 0}
     result = evaluate_solution_v2(answer_text, current["model_answer"], current["correct_value"])
     dur = int(time.time() - start_time)
     result["duration"] = f"{dur//60} phút {dur%60} giây"
     result["guide"] = ai_step_by_step(current["text"], current["correct_value"])
 
-    # Lưu bài
     raw_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     formatted_time = time.strftime("%H:%M - %d/%m/%Y", time.localtime())
 
@@ -372,7 +345,6 @@ def submit():
     STUDENT_SUBMISSIONS.append(submission)
     SUBMISSION_SEQ += 1
 
-    # Gửi email (dùng thread nền)
     threading.Thread(
         target=send_teacher_notification,
         args=(student_name, submission["id"], request.url_root),
@@ -381,9 +353,8 @@ def submit():
 
     return jsonify(result)
 
-
 # ==============================
-# ROUTE: CHẤM THỦ CÔNG
+# CHẤM THỦ CÔNG
 # ==============================
 @app.route('/grade-manual', methods=['POST'])
 def grade_manual():
@@ -411,9 +382,8 @@ def grade_manual():
     sub["manual_override"] = True
     return jsonify({"status": "success", "message": f"✅ Đã chấm thủ công bài #{sid}."})
 
-
 # ==============================
-# ROUTE: BÀI TIẾP THEO
+# BÀI TIẾP THEO & AI
 # ==============================
 @app.route('/api/next-problem')
 def api_next_problem():
@@ -421,10 +391,6 @@ def api_next_problem():
         return jsonify({"problem": "Chưa có bài tập."})
     return jsonify({"problem": random.choice(PROBLEMS)["text"]})
 
-
-# ==============================
-# ROUTE: TẠO BÀI TOÁN BẰNG AI
-# ==============================
 @app.route('/generate-ai', methods=['POST'])
 def generate_ai():
     try:
@@ -485,10 +451,6 @@ Giá 9 cái kệ là: 90000 × 9 = 810000 (đồng).
     except Exception as e:
         return jsonify({"status": "error", "message": f"Lỗi AI/Groq: {str(e)}"}), 500
 
-
-# ==============================
-# ROUTE: LƯU BÀI MỚI (GIÁO VIÊN)
-# ==============================
 @app.route('/save-teacher', methods=['POST'])
 def save_teacher():
     if not session.get('is_teacher'):
@@ -505,10 +467,6 @@ def save_teacher():
     PROBLEMS.append({"id": new_id, "text": prob, "model_answer": model, "correct_value": corr, "topic": "Thủ công"})
     return jsonify({"status": "success", "message": f"Đã thêm bài mới (ID {new_id})."})
 
-
-# ==============================
-# ROUTE: UPLOAD ĐỀ TỪ FILE
-# ==============================
 @app.route('/upload-problem', methods=['POST'])
 def upload_problem():
     if not session.get('is_teacher'):
@@ -549,14 +507,12 @@ def upload_problem():
         "message": f"✅ Đã thêm {len(parsed_problems)} bài mới! Tổng: {len(PROBLEMS)}"
     })
 
-
 # ==============================
-# ROUTE: PHỤC VỤ ẢNH UPLOAD
+# PHỤC VỤ ẢNH
 # ==============================
 @app.route('/static/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
 
 # ==============================
 # MAIN
